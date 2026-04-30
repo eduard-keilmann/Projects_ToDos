@@ -918,6 +918,7 @@
     let appReady = false;
     let isDirty = false;
     let stateNeedsWriteAfterRead = false;
+    let lastWriteFailed = false;
     let currentStatusKind = 'warn';
     let currentStatusTitle = 'Noch kein Ordner verbunden';
     let currentStatusParts = ['Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei.'];
@@ -1196,7 +1197,7 @@
     }
 
     function isEditingEnabled() {
-      return appReady && !!dataFileHandle;
+      return appReady && !!dataFileHandle && !lastWriteFailed;
     }
 
     function renderProjectList() {
@@ -1443,15 +1444,20 @@
       els.chooseFolderBtn.disabled = !supportsFileSystemAccess();
 
       if (!editable) {
-        els.activeProjectTitle.textContent = 'Keine Datei geladen';
-        els.activeProjectSubtitle.textContent = 'Verbinde zuerst einen Ordner, damit das Tool dateibasiert arbeiten kann.';
+        const hasBlockedUnsavedChanges = appReady && !!dataFileHandle && lastWriteFailed;
+        els.activeProjectTitle.textContent = hasBlockedUnsavedChanges ? 'Speichern fehlgeschlagen' : 'Keine Datei geladen';
+        els.activeProjectSubtitle.textContent = hasBlockedUnsavedChanges
+          ? 'Bearbeitung ist pausiert, damit keine weiteren ungespeicherten Aenderungen entstehen. Bitte Zugriff erneuern oder Ordner neu verbinden.'
+          : 'Verbinde zuerst einen Ordner, damit das Tool dateibasiert arbeiten kann.';
         els.statTotal.textContent = '0';
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
         els.visibleTaskCount.textContent = '0 sichtbar';
         els.taskList.innerHTML = '';
         els.emptyState.classList.remove('hidden');
-        els.emptyState.textContent = 'Verbinde zuerst einen Ordner mit der Daten-Datei.';
+        els.emptyState.textContent = hasBlockedUnsavedChanges
+          ? 'Ungespeicherte Aenderungen bleiben im Browser erhalten. Erneuere den Zugriff, um sie in die Datei zu schreiben.'
+          : 'Verbinde zuerst einen Ordner mit der Daten-Datei.';
         return;
       }
 
@@ -1811,6 +1817,7 @@
     function resetConnectionState() {
       appReady = false;
       dataFileHandle = null;
+      lastWriteFailed = false;
     }
 
     function confirmDiscardUnsaved(actionText) {
@@ -1820,6 +1827,7 @@
 
     async function saveDirtyStateAfterPermission(statusTitleText) {
       if (!isDirty) return false;
+      lastWriteFailed = false;
       await ensureDataFileHandle(true);
       await writeStateToDisk();
       appReady = true;
@@ -1871,6 +1879,7 @@
         } else {
           appReady = true;
           isDirty = false;
+          lastWriteFailed = false;
           if (stateNeedsWriteAfterRead) {
             setStatus(
               'warn',
