@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Projekt ToDo Tool – dateibasiert</title>
+  <title>Projekt ToDo Tool - dateibasiert</title>
   <style>
 
     :root {
@@ -813,7 +813,7 @@
           <input id="importFile" type="file" accept="application/json" class="hidden" />
           <button class="btn-danger" id="resetBtn">Alles loeschen</button>
         </div>
-        <p class="footer-note" style="margin-top:12px;">Hinweis: „Alles loeschen" leert auch die verbundene JSON-Datei. Mit Export kannst du vorher ein Backup ziehen.</p>
+        <p class="footer-note" style="margin-top:12px;">Hinweis: "Alles loeschen" leert auch die verbundene JSON-Datei. Mit Export kannst du vorher ein Backup ziehen.</p>
       </div>
     </aside>
 
@@ -1715,7 +1715,7 @@
           const due = document.createElement('span');
           due.className = 'editor-meta-tag';
           const dueText = relativeInfo(task.dueDate);
-          due.textContent = dueText ? `Faellig: ${formatDate(task.dueDate)} · ${dueText}` : `Faellig: ${formatDate(task.dueDate)}`;
+          due.textContent = dueText ? `Faellig: ${formatDate(task.dueDate)} - ${dueText}` : `Faellig: ${formatDate(task.dueDate)}`;
           meta.appendChild(due);
         }
 
@@ -1948,7 +1948,7 @@
         'ok',
         'Datei verbunden',
         fileStatusMessage('Die App speichert automatisch in ', '.'),
-        `Ordner: ${directoryHandle?.name || '(unbekannt)'} · Letztes Speichern: ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
+        `Ordner: ${directoryHandle?.name || '(unbekannt)'} - Letztes Speichern: ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
       );
     }
 
@@ -2057,7 +2057,7 @@
           'warn',
           'Ordner gemerkt, Zugriff fehlt',
           `Der Ordner "${directoryHandle.name}" ist bekannt, aber der Browser braucht erneut eine Freigabe.`,
-          'Klicke einfach auf „Ordner verbinden". Dann wird zuerst der gemerkte Ordner erneut autorisiert und nur falls noetig der Picker geoeffnet.'
+          'Klicke einfach auf "Ordner verbinden". Dann wird zuerst der gemerkte Ordner erneut autorisiert und nur falls noetig der Picker geoeffnet.'
         );
         render();
         return;
@@ -2079,7 +2079,7 @@
 
     async function regrantAccess() {
       if (!directoryHandle) {
-        alert('Es ist noch kein Ordner bekannt. Bitte zuerst „Ordner verbinden" klicken.');
+        alert('Es ist noch kein Ordner bekannt. Bitte zuerst "Ordner verbinden" klicken.');
         return;
       }
       try {
