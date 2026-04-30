@@ -865,7 +865,6 @@
             </div>
             <div class="editor-body">
               <textarea id="taskTitle" class="inline-title-input" placeholder="Neues ToDo schreiben und mit Shift+Enter anlegen" autocomplete="off" rows="1"></textarea>
-              <textarea id="taskNotes" class="inline-notes-input" placeholder="Notizen optional" autocomplete="off" rows="1"></textarea>
               <div class="editor-subrow">
                 <div class="editor-side">
                   <label for="taskDueDate" class="muted editor-label">Faelligkeit (optional)</label>
@@ -940,7 +939,6 @@
       renameProjectBtn: document.getElementById('renameProjectBtn'),
       deleteProjectBtn: document.getElementById('deleteProjectBtn'),
       taskTitle: document.getElementById('taskTitle'),
-      taskNotes: document.getElementById('taskNotes'),
       taskDueDate: document.getElementById('taskDueDate'),
       taskPriority: document.getElementById('taskPriority'),
       taskList: document.getElementById('taskList'),
@@ -1392,7 +1390,6 @@
 
       els.taskFormCard.style.opacity = projectExists ? '1' : '0.55';
       els.taskTitle.disabled = !projectExists;
-      els.taskNotes.disabled = !projectExists;
       els.taskDueDate.disabled = !projectExists;
       els.taskPriority.disabled = !projectExists;
       updateDraftCreatedAt();
@@ -1704,7 +1701,6 @@
       renderTasks();
       requestAnimationFrame(() => {
         autoResizeTextarea(els.taskTitle);
-        autoResizeTextarea(els.taskNotes);
         resizeRenderedNoteFields();
       });
     }
@@ -2120,26 +2116,23 @@
         return;
       }
       const title = els.taskTitle.value.trim();
-      const notes = els.taskNotes.value.trim();
       const dueDate = normalizeDateOnly(els.taskDueDate.value.trim());
       const priority = ['low', 'medium', 'high'].includes(els.taskPriority.value) ? els.taskPriority.value : 'medium';
       if (!title) return;
       project.tasks.unshift({
         id: uid('task'),
         title,
-        notes,
+        notes: '',
         dueDate,
         priority,
         done: false,
         createdAt: new Date().toISOString()
       });
       els.taskTitle.value = '';
-      els.taskNotes.value = '';
       els.taskDueDate.value = '';
       els.taskPriority.value = 'medium';
       updateDraftCreatedAt();
       autoResizeTextarea(els.taskTitle);
-      autoResizeTextarea(els.taskNotes);
       await persistAndRender();
       els.taskTitle.focus();
     }
@@ -2215,7 +2208,6 @@
       if (event.key === 'Enter') addProject(els.newProjectName.value);
     });
     els.taskTitle.addEventListener('input', () => autoResizeTextarea(els.taskTitle));
-    els.taskNotes.addEventListener('input', () => autoResizeTextarea(els.taskNotes));
     els.taskTitle.addEventListener('keydown', event => {
       if (event.key === 'Enter' && event.shiftKey) {
         event.preventDefault();
@@ -2283,19 +2275,16 @@
     async function init() {
       updateDraftCreatedAt();
       autoResizeTextarea(els.taskTitle);
-      autoResizeTextarea(els.taskNotes);
       render();
       showCompatibilityInfo();
       if (document.fonts?.ready) {
         document.fonts.ready.then(() => {
           autoResizeTextarea(els.taskTitle);
-          autoResizeTextarea(els.taskNotes);
           resizeRenderedNoteFields();
         });
       }
       window.addEventListener('load', () => {
         autoResizeTextarea(els.taskTitle);
-        autoResizeTextarea(els.taskNotes);
         resizeRenderedNoteFields();
       }, { once: true });
       if (!supportsFileSystemAccess()) return;
