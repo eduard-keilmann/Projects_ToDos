@@ -433,6 +433,31 @@
       cursor: grabbing;
     }
 
+    .drag-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 28px;
+    }
+
+    .drag-order-btn {
+      width: 28px;
+      min-height: 28px;
+      padding: 0;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1;
+    }
+
+    .drag-order-btn:hover {
+      border-color: var(--primary);
+      color: var(--text);
+      background: var(--surface-3);
+    }
+
     .drag-handle.drag-preview {
       cursor: default;
       opacity: 0.55;
@@ -1253,6 +1278,7 @@
         dragHandle.textContent = '::';
         dragHandle.draggable = true;
         dragHandle.title = 'Projektreihenfolge per Ziehen aendern';
+        dragHandle.setAttribute('aria-label', `Projekt ${project.name} per Drag-and-drop sortieren`);
         dragHandle.addEventListener('dragstart', event => {
           draggedProjectId = project.id;
           clearProjectDragIndicators();
@@ -1267,6 +1293,37 @@
           clearProjectDragIndicators();
         });
         dragWrap.appendChild(dragHandle);
+
+        const projectOrderActions = document.createElement('div');
+        projectOrderActions.className = 'drag-actions';
+        const moveProjectUpBtn = document.createElement('button');
+        moveProjectUpBtn.type = 'button';
+        moveProjectUpBtn.className = 'drag-order-btn';
+        moveProjectUpBtn.textContent = '↑';
+        moveProjectUpBtn.title = 'Projekt nach oben verschieben';
+        moveProjectUpBtn.setAttribute('aria-label', `Projekt ${project.name} nach oben verschieben`);
+        moveProjectUpBtn.disabled = state.projects[0]?.id === project.id;
+        moveProjectUpBtn.addEventListener('click', async event => {
+          event.stopPropagation();
+          if (moveProjectByStep(project.id, -1)) {
+            await persistAndRender();
+          }
+        });
+        const moveProjectDownBtn = document.createElement('button');
+        moveProjectDownBtn.type = 'button';
+        moveProjectDownBtn.className = 'drag-order-btn';
+        moveProjectDownBtn.textContent = '↓';
+        moveProjectDownBtn.title = 'Projekt nach unten verschieben';
+        moveProjectDownBtn.setAttribute('aria-label', `Projekt ${project.name} nach unten verschieben`);
+        moveProjectDownBtn.disabled = state.projects[state.projects.length - 1]?.id === project.id;
+        moveProjectDownBtn.addEventListener('click', async event => {
+          event.stopPropagation();
+          if (moveProjectByStep(project.id, 1)) {
+            await persistAndRender();
+          }
+        });
+        projectOrderActions.append(moveProjectUpBtn, moveProjectDownBtn);
+        dragWrap.appendChild(projectOrderActions);
 
         entry.addEventListener('dragover', event => {
           if (!draggedProjectId || draggedProjectId === project.id) return;
@@ -1421,6 +1478,15 @@
       return true;
     }
 
+    function moveProjectByStep(projectId, direction) {
+      const fromIndex = state.projects.findIndex(project => project.id === projectId);
+      const toIndex = fromIndex + direction;
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= state.projects.length) return false;
+      const [project] = state.projects.splice(fromIndex, 1);
+      state.projects.splice(toIndex, 0, project);
+      return true;
+    }
+
     function reorderProjectTasks(project, movedTaskId, targetTaskId, insertAfter = false) {
       if (!project || movedTaskId === targetTaskId) return false;
       const fromIndex = project.tasks.findIndex(task => task.id === movedTaskId);
@@ -1445,6 +1511,16 @@
       if (fromIndex < 0 || fromIndex === project.tasks.length - 1) return false;
       const [movedTask] = project.tasks.splice(fromIndex, 1);
       project.tasks.push(movedTask);
+      return true;
+    }
+
+    function moveTaskByStep(project, taskId, direction) {
+      if (!project) return false;
+      const fromIndex = project.tasks.findIndex(task => task.id === taskId);
+      const toIndex = fromIndex + direction;
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= project.tasks.length) return false;
+      const [task] = project.tasks.splice(fromIndex, 1);
+      project.tasks.splice(toIndex, 0, task);
       return true;
     }
 
@@ -1546,6 +1622,7 @@
         dragHandle.title = taskReorderEnabled
           ? 'Reihenfolge per Ziehen aendern'
           : 'Sortieren ist nur ohne Suche und Filter moeglich';
+        dragHandle.setAttribute('aria-label', `ToDo ${task.title || 'Ohne Titel'} per Drag-and-drop sortieren`);
         dragHandle.addEventListener('dragstart', event => {
           if (!taskReorderEnabled) {
             event.preventDefault();
@@ -1564,6 +1641,44 @@
           clearDragIndicators();
         });
         dragWrap.appendChild(dragHandle);
+
+        const taskOrderActions = document.createElement('div');
+        taskOrderActions.className = 'drag-actions';
+        const taskIndex = project.tasks.findIndex(currentTask => currentTask.id === task.id);
+        const moveTaskUpBtn = document.createElement('button');
+        moveTaskUpBtn.type = 'button';
+        moveTaskUpBtn.className = 'drag-order-btn';
+        moveTaskUpBtn.textContent = '↑';
+        moveTaskUpBtn.title = taskReorderEnabled
+          ? 'ToDo nach oben verschieben'
+          : 'Sortieren ist nur ohne Suche und Filter moeglich';
+        moveTaskUpBtn.setAttribute('aria-label', `ToDo ${task.title || 'Ohne Titel'} nach oben verschieben`);
+        moveTaskUpBtn.disabled = !taskReorderEnabled || taskIndex <= 0;
+        moveTaskUpBtn.addEventListener('click', async event => {
+          event.stopPropagation();
+          const currentProject = state.projects.find(p => p.id === project.id);
+          if (moveTaskByStep(currentProject, task.id, -1)) {
+            await persistAndRender();
+          }
+        });
+        const moveTaskDownBtn = document.createElement('button');
+        moveTaskDownBtn.type = 'button';
+        moveTaskDownBtn.className = 'drag-order-btn';
+        moveTaskDownBtn.textContent = '↓';
+        moveTaskDownBtn.title = taskReorderEnabled
+          ? 'ToDo nach unten verschieben'
+          : 'Sortieren ist nur ohne Suche und Filter moeglich';
+        moveTaskDownBtn.setAttribute('aria-label', `ToDo ${task.title || 'Ohne Titel'} nach unten verschieben`);
+        moveTaskDownBtn.disabled = !taskReorderEnabled || taskIndex < 0 || taskIndex >= project.tasks.length - 1;
+        moveTaskDownBtn.addEventListener('click', async event => {
+          event.stopPropagation();
+          const currentProject = state.projects.find(p => p.id === project.id);
+          if (moveTaskByStep(currentProject, task.id, 1)) {
+            await persistAndRender();
+          }
+        });
+        taskOrderActions.append(moveTaskUpBtn, moveTaskDownBtn);
+        dragWrap.appendChild(taskOrderActions);
 
         item.addEventListener('dragover', event => {
           if (!taskReorderEnabled) return;
