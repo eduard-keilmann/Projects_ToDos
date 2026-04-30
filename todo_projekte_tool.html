@@ -230,7 +230,7 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: min(34vh, 260px);
+      max-height: clamp(320px, 46vh, 520px);
       overflow-y: auto;
       overscroll-behavior: contain;
       padding-right: 4px;
@@ -1133,6 +1133,11 @@
       return trimmed || fallback;
     }
 
+    function normalizeLongText(value, fallback = '') {
+      if (value === null || value === undefined) return fallback;
+      return String(value);
+    }
+
     function normalizeDateTime(value) {
       if (typeof value === 'string') {
         const parsed = new Date(value);
@@ -1189,7 +1194,7 @@
           return (
             String(task?.id ?? '') !== normalizedTask.id ||
             normalizeText(task?.title, 'Unbenannte Aufgabe') !== normalizedTask.title ||
-            normalizeText(task?.notes, '') !== normalizedTask.notes ||
+            normalizeLongText(task?.notes, '') !== normalizedTask.notes ||
             normalizeDateOnly(task?.dueDate) !== normalizedTask.dueDate ||
             normalizePriority(task?.priority) !== normalizedTask.priority ||
             normalizeBoolean(task?.done) !== normalizedTask.done ||
@@ -1212,7 +1217,7 @@
           ? project.tasks.map(task => ({
               id: ensureUniqueId('task', taskIds, task?.id),
               title: normalizeText(task?.title, 'Unbenannte Aufgabe'),
-              notes: normalizeText(task?.notes, ''),
+              notes: normalizeLongText(task?.notes, ''),
               dueDate: normalizeDateOnly(task?.dueDate),
               priority: normalizePriority(task?.priority),
               done: normalizeBoolean(task?.done),
@@ -1819,7 +1824,7 @@
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
           if (!currentTask) return;
-          currentTask.notes = notesInput.value.trim();
+          currentTask.notes = notesInput.value;
           notesInput.value = currentTask.notes;
           autoResizeTextarea(notesInput);
           if (els.searchInput.value.trim()) {
@@ -2197,10 +2202,12 @@
     }
 
     async function connectDirectoryFromPicker() {
+      let attemptedDirtySave = false;
       try {
         if (directoryHandle) {
           const granted = await verifyPermission(directoryHandle, true, true);
           if (granted) {
+            attemptedDirtySave = isDirty;
             await saveDirtyStateAfterPermission('Zugriff wiederhergestellt');
             if (!isDirty) {
               await activateConnectedDirectory('Datei verbunden');
@@ -2212,6 +2219,9 @@
         await pickNewDirectory();
       } catch (error) {
         if (error?.name === 'AbortError') return;
+        if (attemptedDirtySave && isDirty) {
+          return;
+        }
         if (!directoryHandle) {
           resetConnectionState();
           render();
@@ -2279,20 +2289,23 @@
         alert('Es ist noch kein Ordner bekannt. Bitte zuerst "Ordner verbinden" klicken.');
         return;
       }
+      let attemptedDirtySave = false;
       try {
         const granted = await verifyPermission(directoryHandle, true, true);
         if (!granted) {
           throw new Error('Zugriff wurde nicht gewaehrt');
         }
+        attemptedDirtySave = isDirty;
         const savedDirtyState = await saveDirtyStateAfterPermission('Zugriff wiederhergestellt');
         if (!savedDirtyState) {
           await activateConnectedDirectory('Zugriff wiederhergestellt');
         }
       } catch (error) {
+        if (attemptedDirtySave && isDirty) {
+          return;
+        }
         if (!isDirty) {
           resetConnectionState();
-        } else {
-          return;
         }
         setStatus(
           'err',
@@ -2300,6 +2313,7 @@
           'Bitte den Ordner erneut verbinden.',
           error?.message || 'Unbekannter Fehler'
         );
+        render();
       }
     }
 
