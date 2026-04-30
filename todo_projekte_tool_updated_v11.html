@@ -219,12 +219,6 @@
       border: 1px solid rgba(255, 123, 123, 0.24);
     }
 
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted);
-      border: 1px dashed var(--border);
-    }
-
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -599,53 +593,6 @@
       margin-top: -2px;
     }
 
-    .task-item {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 14px;
-      align-items: start;
-      padding: 16px;
-      border-radius: 18px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .task-item.done {
-      background: var(--surface-2);
-    }
-
-    .task-item.done .task-title {
-      text-decoration: line-through;
-      color: var(--muted);
-    }
-
-    .task-title {
-      font-weight: 600;
-      margin-bottom: 6px;
-    }
-
-    .task-notes {
-      color: var(--muted);
-      white-space: pre-wrap;
-      line-height: 1.4;
-    }
-
-    .task-meta {
-      margin-top: 8px;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .pill {
-      padding: 5px 9px;
-      background: var(--surface-3);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-    }
-
     .toolbar {
       display: flex;
       gap: 10px;
@@ -688,13 +635,6 @@
       height: 20px;
       accent-color: var(--primary);
       cursor: pointer;
-    }
-
-    .action-group {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
     }
 
     .mini {
@@ -833,9 +773,9 @@
         <div class="row space" style="margin-bottom:12px;">
           <h2>Speicherort</h2>
         </div>
-        <div class="status-box" style="margin-bottom:12px;">
+        <div class="status-box" style="margin-bottom:12px;" aria-live="polite" aria-atomic="true">
           <div class="status-title"><span id="statusDot" class="dot"></span><span id="storageStatusTitle">Noch kein Ordner verbunden</span></div>
-          <div class="muted" id="storageStatusText">Klicke auf „Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei. Dort wird automatisch <strong>projekt-todos.json</strong> angelegt bzw. verwendet.</div>
+          <div class="muted" id="storageStatusText">Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei. Dort wird automatisch projekt-todos.json angelegt bzw. verwendet.</div>
           <div class="footer-note" id="storageMeta">Noch keine Dateiverbindung aktiv.</div>
         </div>
         <div class="row">
@@ -925,6 +865,7 @@
             </div>
             <div class="editor-body">
               <textarea id="taskTitle" class="inline-title-input" placeholder="Neues ToDo schreiben und mit Shift+Enter anlegen" autocomplete="off" rows="1"></textarea>
+              <textarea id="taskNotes" class="inline-notes-input" placeholder="Notizen optional" autocomplete="off" rows="1"></textarea>
               <div class="editor-subrow">
                 <div class="editor-side">
                   <label for="taskDueDate" class="muted editor-label">Faelligkeit (optional)</label>
@@ -975,9 +916,10 @@
     let dataFileHandle = null;
     let saveChain = Promise.resolve();
     let appReady = false;
+    let isDirty = false;
     let currentStatusKind = 'warn';
     let currentStatusTitle = 'Noch kein Ordner verbunden';
-    let currentStatusText = 'Klicke auf „Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei.';
+    let currentStatusParts = ['Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei.'];
     let currentStatusMeta = 'Noch keine Dateiverbindung aktiv.';
 
     const els = {
@@ -998,6 +940,7 @@
       renameProjectBtn: document.getElementById('renameProjectBtn'),
       deleteProjectBtn: document.getElementById('deleteProjectBtn'),
       taskTitle: document.getElementById('taskTitle'),
+      taskNotes: document.getElementById('taskNotes'),
       taskDueDate: document.getElementById('taskDueDate'),
       taskPriority: document.getElementById('taskPriority'),
       taskList: document.getElementById('taskList'),
@@ -1025,10 +968,14 @@
       return typeof window.showDirectoryPicker === 'function';
     }
 
-    function setStatus(kind, title, text, meta = '') {
+    function fileStatusMessage(prefix, suffix = '') {
+      return [prefix, { strong: DATA_FILE_NAME }, suffix];
+    }
+
+    function setStatus(kind, title, textParts, meta = '') {
       currentStatusKind = kind;
       currentStatusTitle = title;
-      currentStatusText = text;
+      currentStatusParts = Array.isArray(textParts) ? textParts : [String(textParts ?? '')];
       currentStatusMeta = meta;
       renderStatus();
     }
@@ -1036,7 +983,16 @@
     function renderStatus() {
       els.statusDot.className = `dot ${currentStatusKind === 'ok' ? 'ok' : currentStatusKind === 'err' ? 'err' : 'warn'}`;
       els.storageStatusTitle.textContent = currentStatusTitle;
-      els.storageStatusText.innerHTML = currentStatusText;
+      els.storageStatusText.replaceChildren();
+      currentStatusParts.forEach(part => {
+        if (part && typeof part === 'object' && Object.hasOwn(part, 'strong')) {
+          const strong = document.createElement('strong');
+          strong.textContent = String(part.strong);
+          els.storageStatusText.appendChild(strong);
+          return;
+        }
+        els.storageStatusText.appendChild(document.createTextNode(String(part ?? '')));
+      });
       els.storageMeta.textContent = currentStatusMeta;
     }
 
@@ -1056,9 +1012,21 @@
       return `${year}-${month}-${day}`;
     }
 
+    function isValidDateOnly(value) {
+      if (typeof value !== 'string') return false;
+      const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return false;
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const date = new Date(year, month - 1, day);
+      return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+    }
+
     function formatDate(dateString) {
-      if (!dateString) return null;
-      const date = new Date(dateString + 'T00:00:00');
+      const cleanDate = normalizeDateOnly(dateString);
+      if (!cleanDate) return null;
+      const date = new Date(`${cleanDate}T00:00:00`);
       return new Intl.DateTimeFormat('de-DE', {
         day: '2-digit',
         month: '2-digit',
@@ -1067,10 +1035,11 @@
     }
 
     function relativeInfo(dateString) {
-      if (!dateString) return '';
+      const cleanDate = normalizeDateOnly(dateString);
+      if (!cleanDate) return '';
       const today = new Date();
       const current = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const due = new Date(dateString + 'T00:00:00');
+      const due = new Date(`${cleanDate}T00:00:00`);
       const diff = Math.round((due - current) / 86400000);
       if (diff === 0) return 'Heute faellig';
       if (diff === 1) return 'Morgen faellig';
@@ -1085,14 +1054,6 @@
       return { total, done, open: total - done };
     }
 
-    function escapeHtml(value) {
-      return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-    }
 
     function getSelectedProject() {
       return state.projects.find(project => project.id === state.selectedProjectId) || null;
@@ -1105,32 +1066,86 @@
       }
     }
 
+    function normalizeText(value, fallback = '') {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed || fallback;
+      }
+      if (value === null || value === undefined) return fallback;
+      const trimmed = String(value).trim();
+      return trimmed || fallback;
+    }
+
+    function normalizeDateTime(value) {
+      if (typeof value === 'string') {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.toISOString();
+        }
+      }
+      return new Date().toISOString();
+    }
+
+    function normalizeDateOnly(value) {
+      return isValidDateOnly(value) ? value : '';
+    }
+
+    function normalizeBoolean(value) {
+      return value === true;
+    }
+
+    function normalizePriority(value) {
+      return ['low', 'medium', 'high'].includes(value) ? value : 'medium';
+    }
+
+    function ensureUniqueId(prefix, existingIds, candidate) {
+      let base = normalizeText(candidate, uid(prefix)).replace(/\s+/g, '-');
+      if (!base) base = uid(prefix);
+      let next = base;
+      while (existingIds.has(next)) {
+        next = uid(prefix);
+      }
+      existingIds.add(next);
+      return next;
+    }
+
     function normalizeIncomingState(input) {
       const incoming = input?.data ?? input;
       if (!incoming || !Array.isArray(incoming.projects)) {
         throw new Error('Ungueltige Datenstruktur');
       }
 
-      const projects = incoming.projects.map(project => ({
-        id: String(project.id || uid('project')),
-        name: String(project.name || 'Unbenanntes Projekt'),
-        createdAt: project.createdAt || new Date().toISOString(),
-        tasks: Array.isArray(project.tasks)
+      const projectIds = new Set();
+      const projects = incoming.projects.map(project => {
+        const taskIds = new Set();
+        const tasks = Array.isArray(project?.tasks)
           ? project.tasks.map(task => ({
-              id: String(task.id || uid('task')),
-              title: String(task.title || 'Unbenannte Aufgabe'),
-              notes: String(task.notes || ''),
-              dueDate: task.dueDate ? String(task.dueDate) : '',
-              priority: ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium',
-              done: Boolean(task.done),
-              createdAt: task.createdAt || new Date().toISOString()
+              id: ensureUniqueId('task', taskIds, task?.id),
+              title: normalizeText(task?.title, 'Unbenannte Aufgabe'),
+              notes: normalizeText(task?.notes, ''),
+              dueDate: normalizeDateOnly(task?.dueDate),
+              priority: normalizePriority(task?.priority),
+              done: normalizeBoolean(task?.done),
+              createdAt: normalizeDateTime(task?.createdAt)
             }))
-          : []
-      }));
+          : [];
+
+        return {
+          id: ensureUniqueId('project', projectIds, project?.id),
+          name: normalizeText(project?.name, 'Unbenanntes Projekt'),
+          createdAt: normalizeDateTime(project?.createdAt),
+          tasks
+        };
+      });
+
+      const incomingSelectedProjectId = incoming.selectedProjectId == null ? null : String(incoming.selectedProjectId);
+      const selectedProjectId = projects.some(project => project.id === incomingSelectedProjectId)
+        ? incomingSelectedProjectId
+        : (projects[0]?.id ?? null);
 
       return {
         projects,
-        selectedProjectId: incoming.selectedProjectId || (projects[0]?.id ?? null),
+        selectedProjectId,
         settings: {
           theme: incoming?.settings?.theme === 'light' ? 'light' : 'dark'
         }
@@ -1140,7 +1155,7 @@
     function createPayload() {
       return {
         app: 'Projekt ToDo Tool',
-        version: 4,
+        version: 5,
         savedAt: new Date().toISOString(),
         data: state
       };
@@ -1219,10 +1234,14 @@
         selectBtn.type = 'button';
         selectBtn.className = 'project-select';
         const projectCounts = counts(project);
-        selectBtn.innerHTML = `
-          <div><strong>${escapeHtml(project.name)}</strong></div>
-          <div class="meta">${projectCounts.total} ToDos · ${projectCounts.open} offen · ${projectCounts.done} erledigt</div>
-        `;
+        const projectNameLine = document.createElement('div');
+        const projectName = document.createElement('strong');
+        projectName.textContent = project.name;
+        projectNameLine.appendChild(projectName);
+        const projectMeta = document.createElement('div');
+        projectMeta.className = 'meta';
+        projectMeta.textContent = `${projectCounts.total} ToDos - ${projectCounts.open} offen - ${projectCounts.done} erledigt`;
+        selectBtn.append(projectNameLine, projectMeta);
         selectBtn.addEventListener('click', async () => {
           state.selectedProjectId = project.id;
           await persistAndRender();
@@ -1244,7 +1263,7 @@
           (filter === 'open' && !task.done) ||
           (filter === 'done' && task.done);
 
-        const haystack = `${task.title} ${task.priority || ''}`.toLowerCase();
+        const haystack = `${task.title} ${task.priority || ''} ${task.notes || ''}`.toLowerCase();
         const matchesSearch = !query || haystack.includes(query);
         return matchesFilter && matchesSearch;
       });
@@ -1254,12 +1273,17 @@
     let draggedTaskId = null;
     let draggedProjectId = null;
 
+    function markDirty() {
+      isDirty = true;
+    }
+
     function scheduleAutosave() {
       if (!isEditingEnabled()) return;
+      markDirty();
       setStatus(
         'warn',
         'Speichere...',
-        `Schreibe Aenderungen nach <strong>${escapeHtml(DATA_FILE_NAME)}</strong>.`,
+        fileStatusMessage('Schreibe Aenderungen nach ', '.'),
         `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
       );
       renderStatus();
@@ -1368,6 +1392,7 @@
 
       els.taskFormCard.style.opacity = projectExists ? '1' : '0.55';
       els.taskTitle.disabled = !projectExists;
+      els.taskNotes.disabled = !projectExists;
       els.taskDueDate.disabled = !projectExists;
       els.taskPriority.disabled = !projectExists;
       updateDraftCreatedAt();
@@ -1411,7 +1436,7 @@
 
       const projectCounts = counts(project);
       els.activeProjectTitle.textContent = project.name;
-      els.activeProjectSubtitle.textContent = `Erstellt am ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format(new Date(project.createdAt))}`;
+      els.activeProjectSubtitle.textContent = `Erstellt am ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format(new Date(normalizeDateTime(project.createdAt)))}`;
       els.statTotal.textContent = String(projectCounts.total);
       els.statOpen.textContent = String(projectCounts.open);
       els.statDone.textContent = String(projectCounts.done);
@@ -1419,6 +1444,10 @@
       const filteredTasks = getFilteredTasks(project);
       els.visibleTaskCount.textContent = `${filteredTasks.length} sichtbar`;
       els.taskList.innerHTML = '';
+      const taskReorderEnabled = els.filterSelect.value === 'all' && !els.searchInput.value.trim();
+      if (!taskReorderEnabled && project.tasks.length) {
+        els.visibleTaskCount.textContent = `${filteredTasks.length} sichtbar - Sortieren nur ohne Suche/Filter`;
+      }
 
       if (!project.tasks.length) {
         els.emptyState.classList.remove('hidden');
@@ -1445,9 +1474,15 @@
         const dragHandle = document.createElement('div');
         dragHandle.className = 'drag-handle';
         dragHandle.textContent = '::';
-        dragHandle.draggable = true;
-        dragHandle.title = 'Reihenfolge per Ziehen aendern';
+        dragHandle.draggable = taskReorderEnabled;
+        dragHandle.title = taskReorderEnabled
+          ? 'Reihenfolge per Ziehen aendern'
+          : 'Sortieren ist nur ohne Suche und Filter moeglich';
         dragHandle.addEventListener('dragstart', event => {
+          if (!taskReorderEnabled) {
+            event.preventDefault();
+            return;
+          }
           draggedTaskId = task.id;
           clearDragIndicators();
           item.classList.add('dragging');
@@ -1463,6 +1498,7 @@
         dragWrap.appendChild(dragHandle);
 
         item.addEventListener('dragover', event => {
+          if (!taskReorderEnabled) return;
           if (!draggedTaskId || draggedTaskId === task.id) return;
           event.preventDefault();
           const rect = item.getBoundingClientRect();
@@ -1475,6 +1511,7 @@
           item.classList.remove('drag-over-top', 'drag-over-bottom');
         });
         item.addEventListener('drop', async event => {
+          if (!taskReorderEnabled) return;
           if (!draggedTaskId || draggedTaskId === task.id) return;
           event.preventDefault();
           event.stopPropagation();
@@ -1495,6 +1532,7 @@
         checkbox.type = 'checkbox';
         checkbox.className = 'checkbox';
         checkbox.checked = task.done;
+        checkbox.setAttribute('aria-label', 'ToDo erledigt');
         checkbox.addEventListener('change', async () => {
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
@@ -1563,6 +1601,34 @@
           scheduleAutosave();
         });
 
+        const notesInput = document.createElement('textarea');
+        notesInput.className = 'inline-notes-input';
+        notesInput.value = task.notes || '';
+        notesInput.rows = 1;
+        notesInput.placeholder = 'Notizen';
+        notesInput.setAttribute('aria-label', 'Notizen');
+        notesInput.addEventListener('focus', () => autoResizeTextarea(notesInput));
+        notesInput.addEventListener('input', () => {
+          autoResizeTextarea(notesInput);
+          const currentProject = state.projects.find(p => p.id === project.id);
+          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+          if (!currentTask) return;
+          currentTask.notes = notesInput.value;
+          scheduleAutosave();
+        });
+        notesInput.addEventListener('blur', () => {
+          const currentProject = state.projects.find(p => p.id === project.id);
+          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+          if (!currentTask) return;
+          currentTask.notes = notesInput.value.trim();
+          notesInput.value = currentTask.notes;
+          autoResizeTextarea(notesInput);
+          if (els.searchInput.value.trim()) {
+            renderTasks();
+          }
+          scheduleAutosave();
+        });
+
         const subrow = document.createElement('div');
         subrow.className = 'editor-subrow';
 
@@ -1579,7 +1645,7 @@
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
           if (!currentTask) return;
-          currentTask.dueDate = dueInput.value;
+          currentTask.dueDate = normalizeDateOnly(dueInput.value);
           renderTasks();
           scheduleAutosave();
         });
@@ -1590,6 +1656,7 @@
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn-danger mini editor-delete-btn';
         deleteBtn.textContent = 'Loeschen';
+        deleteBtn.title = 'ToDo loeschen';
         deleteBtn.addEventListener('click', async () => {
           const currentProject = state.projects.find(p => p.id === project.id);
           if (!currentProject) return;
@@ -1605,7 +1672,7 @@
         meta.className = 'editor-meta-line';
         const created = document.createElement('span');
         created.className = 'editor-meta-tag';
-        created.textContent = `Erstellt: ${formatDate(task.createdAt.slice(0, 10)) || '-'}`;
+        created.textContent = `Erstellt: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
         const status = document.createElement('span');
         status.className = 'editor-meta-tag';
         status.textContent = task.done ? 'Erledigt' : 'Offen';
@@ -1619,7 +1686,8 @@
         }
 
         autoResizeTextarea(titleInput);
-        body.append(titleInput, subrow, meta);
+        autoResizeTextarea(notesInput);
+        body.append(titleInput, notesInput, subrow, meta);
 
         item.append(dragWrap, controlStack, body);
         els.taskList.appendChild(item);
@@ -1636,7 +1704,7 @@
       renderTasks();
       requestAnimationFrame(() => {
         autoResizeTextarea(els.taskTitle);
-        autoResizeTextarea(els.taskTitle);
+        autoResizeTextarea(els.taskNotes);
         resizeRenderedNoteFields();
       });
     }
@@ -1707,12 +1775,35 @@
       return dataFileHandle;
     }
 
+    function resetConnectionState() {
+      appReady = false;
+      dataFileHandle = null;
+    }
+
+    function confirmDiscardUnsaved(actionText) {
+      if (!isDirty) return true;
+      return confirm(`${actionText}\n\nEs gibt ungespeicherte Aenderungen im Browser. Wenn du fortfaehrst, werden diese Aenderungen verworfen.`);
+    }
+
+    async function saveDirtyStateAfterPermission(statusTitleText) {
+      if (!isDirty) return false;
+      await ensureDataFileHandle(true);
+      await writeStateToDisk();
+      appReady = true;
+      setStatus(
+        'ok',
+        statusTitleText,
+        fileStatusMessage('Ungespeicherte Aenderungen wurden nach ', ' geschrieben.'),
+        `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
+      );
+      render();
+      return true;
+    }
 
     async function initializeEmptyDataFile() {
       state = structuredClone(defaultState);
       ensureSelection();
-      appReady = true;
-      render();
+      markDirty();
 
       try {
         await writeStateToDisk();
@@ -1725,33 +1816,42 @@
           throw secondError || firstError;
         }
       }
+      appReady = true;
+      render();
     }
 
     async function activateConnectedDirectory(statusTitleText) {
-      await ensureDataFileHandle(true);
-      appReady = true;
+      resetConnectionState();
+      try {
+        await ensureDataFileHandle(true);
+        const loadedExistingState = await readStateFromDisk();
 
-      const loadedExistingState = await readStateFromDisk();
-      render();
+        if (!loadedExistingState) {
+          setStatus(
+            'warn',
+            'Ordner verbunden',
+            fileStatusMessage('Der Ordner ist verbunden. ', ' wird jetzt angelegt.'),
+            `Ordner: ${directoryHandle.name}`
+          );
+          renderStatus();
+          await initializeEmptyDataFile();
+        } else {
+          appReady = true;
+          isDirty = false;
+        }
 
-      if (!loadedExistingState) {
         setStatus(
-          'warn',
-          'Ordner verbunden',
-          `Der Ordner ist verbunden. <strong>${escapeHtml(DATA_FILE_NAME)}</strong> wird jetzt angelegt.`,
+          'ok',
+          statusTitleText,
+          fileStatusMessage('Die Datei ', ' wird im ausgewaehlten Ordner verwendet.'),
           `Ordner: ${directoryHandle.name}`
         );
-        renderStatus();
-        await initializeEmptyDataFile();
+        render();
+      } catch (error) {
+        resetConnectionState();
+        render();
+        throw error;
       }
-
-      setStatus(
-        'ok',
-        statusTitleText,
-        `Die Datei <strong>${escapeHtml(DATA_FILE_NAME)}</strong> wird im ausgewaehlten Ordner verwendet.`,
-        `Ordner: ${directoryHandle.name}`
-      );
-      render();
     }
 
     async function readStateFromDisk() {
@@ -1780,13 +1880,27 @@
 
     async function writeStateToDisk() {
       if (!dataFileHandle) throw new Error('Keine Daten-Datei verbunden');
-      const writable = await dataFileHandle.createWritable();
-      await writable.write(JSON.stringify(createPayload(), null, 2));
-      await writable.close();
+      let writable = null;
+      try {
+        writable = await dataFileHandle.createWritable();
+        await writable.write(JSON.stringify(createPayload(), null, 2));
+        await writable.close();
+        writable = null;
+      } catch (error) {
+        if (writable && typeof writable.abort === 'function') {
+          try {
+            await writable.abort();
+          } catch {
+            // Abort is best effort after write failure.
+          }
+        }
+        throw error;
+      }
+      isDirty = false;
       setStatus(
         'ok',
         'Datei verbunden',
-        `Die App speichert automatisch in <strong>${escapeHtml(DATA_FILE_NAME)}</strong>.`,
+        fileStatusMessage('Die App speichert automatisch in ', '.'),
         `Ordner: ${directoryHandle?.name || '(unbekannt)'} · Letztes Speichern: ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
       );
     }
@@ -1809,12 +1923,13 @@
     }
 
     async function persistAndRender() {
+      markDirty();
       render();
       if (!isEditingEnabled()) return;
       setStatus(
         'warn',
         'Speichere...',
-        `Schreibe Aenderungen nach <strong>${escapeHtml(DATA_FILE_NAME)}</strong>.`,
+        fileStatusMessage('Schreibe Aenderungen nach ', '.'),
         `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
       );
       renderStatus();
@@ -1839,12 +1954,22 @@
 
     async function connectDirectoryFromPicker() {
       try {
+        if (directoryHandle) {
+          const granted = await verifyPermission(directoryHandle, true, true);
+          if (granted) {
+            await saveDirtyStateAfterPermission('Zugriff wiederhergestellt');
+            if (!isDirty) {
+              await activateConnectedDirectory('Datei verbunden');
+            }
+            return;
+          }
+        }
+        if (!confirmDiscardUnsaved('Neuen Ordner verbinden?')) return;
         await pickNewDirectory();
       } catch (error) {
         if (error?.name === 'AbortError') return;
         if (!directoryHandle) {
-          appReady = false;
-          dataFileHandle = null;
+          resetConnectionState();
           render();
         }
         setStatus(
@@ -1865,7 +1990,7 @@
         setStatus(
           'warn',
           'Ordner gemerkt, Zugriff fehlt',
-          `Der Ordner <strong>${escapeHtml(directoryHandle.name)}</strong> ist bekannt, aber der Browser braucht erneut eine Freigabe.`,
+          `Der Ordner "${directoryHandle.name}" ist bekannt, aber der Browser braucht erneut eine Freigabe.`,
           'Klicke einfach auf „Ordner verbinden". Dann wird zuerst der gemerkte Ordner erneut autorisiert und nur falls noetig der Picker geoeffnet.'
         );
         render();
@@ -1875,6 +2000,7 @@
       try {
         await activateConnectedDirectory('Datei automatisch verbunden');
       } catch (error) {
+        resetConnectionState();
         setStatus(
           'err',
           'Datei konnte nicht geladen werden',
@@ -1895,8 +2021,14 @@
         if (!granted) {
           throw new Error('Zugriff wurde nicht gewaehrt');
         }
-        await activateConnectedDirectory('Zugriff wiederhergestellt');
+        const savedDirtyState = await saveDirtyStateAfterPermission('Zugriff wiederhergestellt');
+        if (!savedDirtyState) {
+          await activateConnectedDirectory('Zugriff wiederhergestellt');
+        }
       } catch (error) {
+        if (!isDirty) {
+          resetConnectionState();
+        }
         setStatus(
           'err',
           'Zugriff nicht erneuert',
@@ -1908,16 +2040,17 @@
 
     async function reloadFromDisk() {
       if (!isEditingEnabled()) return;
-      const ok = confirm('Aktuellen Stand aus der Datei neu laden? Nicht gespeicherte Aenderungen wuerden ueberschrieben.');
+      const ok = !isDirty || confirm('Aktuellen Stand aus der Datei neu laden?\n\nEs gibt ungespeicherte Aenderungen im Browser. Diese werden verworfen.');
       if (!ok) return;
       try {
         const loadedExistingState = await readStateFromDisk();
+        isDirty = false;
         render();
         if (!loadedExistingState) {
           setStatus(
             'warn',
             'Datei initialisiert',
-            `Die Datei <strong>${escapeHtml(DATA_FILE_NAME)}</strong> war leer und wird jetzt angelegt.`,
+            fileStatusMessage('Die Datei ', ' war leer und wird jetzt angelegt.'),
             `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
           );
           renderStatus();
@@ -1926,7 +2059,7 @@
         setStatus(
           'ok',
           'Datei neu geladen',
-          `Die Datei <strong>${escapeHtml(DATA_FILE_NAME)}</strong> wurde erneut eingelesen.`,
+          fileStatusMessage('Die Datei ', ' wurde erneut eingelesen.'),
           `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
         );
       } catch (error) {
@@ -1987,18 +2120,21 @@
         return;
       }
       const title = els.taskTitle.value.trim();
-      const dueDate = els.taskDueDate.value.trim();
+      const notes = els.taskNotes.value.trim();
+      const dueDate = normalizeDateOnly(els.taskDueDate.value.trim());
       const priority = ['low', 'medium', 'high'].includes(els.taskPriority.value) ? els.taskPriority.value : 'medium';
       if (!title) return;
       project.tasks.unshift({
         id: uid('task'),
         title,
+        notes,
         dueDate,
         priority,
         done: false,
         createdAt: new Date().toISOString()
       });
       els.taskTitle.value = '';
+      els.taskNotes.value = '';
       els.taskDueDate.value = '';
       els.taskPriority.value = 'medium';
       updateDraftCreatedAt();
@@ -2024,12 +2160,24 @@
 
     async function importBackup(file) {
       if (!file || !isEditingEnabled()) return;
+      const ok = confirm('Backup importieren?\n\nDer aktuelle Stand wird durch die Importdatei ersetzt und danach in die verbundene JSON-Datei geschrieben.');
+      if (!ok) {
+        els.importFile.value = '';
+        return;
+      }
+      const previousState = structuredClone(state);
+      const previousDirty = isDirty;
       try {
         const text = await file.text();
-        state = normalizeIncomingState(JSON.parse(text));
+        const nextState = normalizeIncomingState(JSON.parse(text));
+        state = nextState;
+        markDirty();
         await persistAndRender();
         alert('Import erfolgreich. Die verbundene Daten-Datei wurde direkt aktualisiert.');
-      } catch {
+      } catch (error) {
+        state = previousState;
+        isDirty = previousDirty;
+        render();
         alert('Die Datei konnte nicht importiert werden. Bitte eine gueltige JSON-Backup-Datei waehlen.');
       } finally {
         els.importFile.value = '';
@@ -2067,6 +2215,7 @@
       if (event.key === 'Enter') addProject(els.newProjectName.value);
     });
     els.taskTitle.addEventListener('input', () => autoResizeTextarea(els.taskTitle));
+    els.taskNotes.addEventListener('input', () => autoResizeTextarea(els.taskNotes));
     els.taskTitle.addEventListener('keydown', event => {
       if (event.key === 'Enter' && event.shiftKey) {
         event.preventDefault();
@@ -2074,10 +2223,12 @@
       }
     });
     els.taskList.addEventListener('dragover', event => {
+      if (els.filterSelect.value !== 'all' || els.searchInput.value.trim()) return;
       if (!draggedTaskId) return;
       event.preventDefault();
     });
     els.taskList.addEventListener('drop', async event => {
+      if (els.filterSelect.value !== 'all' || els.searchInput.value.trim()) return;
       if (!draggedTaskId) return;
       const dropTarget = event.target.closest('.editor-task');
       if (dropTarget) return;
@@ -2121,6 +2272,12 @@
       } else {
         render();
       }
+    });
+
+    window.addEventListener('beforeunload', event => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
     });
 
     async function init() {
