@@ -1138,6 +1138,13 @@
       return String(value);
     }
 
+    function cloneJsonData(value) {
+      if (typeof structuredClone === 'function') {
+        return structuredClone(value);
+      }
+      return JSON.parse(JSON.stringify(value));
+    }
+
     function normalizeDateTime(value) {
       if (typeof value === 'string') {
         const parsed = new Date(value);
@@ -1954,6 +1961,21 @@
       }
     }
 
+    async function clearRememberedDirectoryHandle() {
+      try {
+        const db = await openHandleDb();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(HANDLE_STORE_NAME, 'readwrite');
+          tx.objectStore(HANDLE_STORE_NAME).delete(HANDLE_KEY);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        db.close();
+      } catch {
+        // Best effort only.
+      }
+    }
+
     async function verifyPermission(handle, write = false, ask = false) {
       if (!handle) return false;
       const opts = { mode: write ? 'readwrite' : 'read' };
@@ -2187,6 +2209,14 @@
     }
 
     async function pickNewDirectory() {
+      const previousDirectoryHandle = directoryHandle;
+      const previousDataFileHandle = dataFileHandle;
+      const previousAppReady = appReady;
+      const previousIsDirty = isDirty;
+      const previousLastWriteFailed = lastWriteFailed;
+      const previousStateNeedsWriteAfterRead = stateNeedsWriteAfterRead;
+      const previousPendingThemeBeforeConnection = pendingThemeBeforeConnection;
+      const previousState = JSON.parse(JSON.stringify(state));
       const picked = await window.showDirectoryPicker({
         id: 'projekt-todo-tool-folder',
         mode: 'readwrite'
@@ -2197,8 +2227,26 @@
       }
       directoryHandle = picked;
       dataFileHandle = null;
-      await saveRememberedDirectoryHandle(directoryHandle);
-      await activateConnectedDirectory('Datei verbunden');
+      try {
+        await activateConnectedDirectory('Datei verbunden');
+        await saveRememberedDirectoryHandle(directoryHandle);
+      } catch (error) {
+        directoryHandle = previousDirectoryHandle;
+        dataFileHandle = previousDataFileHandle;
+        appReady = previousAppReady;
+        isDirty = previousIsDirty;
+        lastWriteFailed = previousLastWriteFailed;
+        stateNeedsWriteAfterRead = previousStateNeedsWriteAfterRead;
+        pendingThemeBeforeConnection = previousPendingThemeBeforeConnection;
+        state = previousState;
+        if (previousDirectoryHandle) {
+          await saveRememberedDirectoryHandle(previousDirectoryHandle);
+        } else {
+          await clearRememberedDirectoryHandle();
+        }
+        render();
+        throw error;
+      }
     }
 
     async function connectDirectoryFromPicker() {
@@ -2444,11 +2492,15 @@
         els.importFile.value = '';
         return;
       }
-      const previousState = structuredClone(state);
+      const previousState = cloneJsonData(state);
       const previousDirty = isDirty;
       const previousLastWriteFailed = lastWriteFailed;
       const previousStateNeedsWriteAfterRead = stateNeedsWriteAfterRead;
       const previousPendingThemeBeforeConnection = pendingThemeBeforeConnection;
+      const previousStatusKind = currentStatusKind;
+      const previousStatusTitle = currentStatusTitle;
+      const previousStatusParts = [...currentStatusParts];
+      const previousStatusMeta = currentStatusMeta;
       try {
         const text = await file.text();
         const nextState = normalizeIncomingState(JSON.parse(text));
@@ -2462,7 +2514,17 @@
         lastWriteFailed = previousLastWriteFailed;
         stateNeedsWriteAfterRead = previousStateNeedsWriteAfterRead;
         pendingThemeBeforeConnection = previousPendingThemeBeforeConnection;
+        currentStatusKind = previousStatusKind;
+        currentStatusTitle = previousStatusTitle;
+        currentStatusParts = previousStatusParts;
+        currentStatusMeta = previousStatusMeta;
         render();
+        setStatus(
+          'err',
+          'Import fehlgeschlagen',
+          'Der vorherige Stand wurde wiederhergestellt. Bitte eine gueltige JSON-Backup-Datei waehlen.',
+          error?.message || 'Unbekannter Fehler'
+        );
         alert('Die Datei konnte nicht importiert werden. Bitte eine gueltige JSON-Backup-Datei waehlen.');
       } finally {
         els.importFile.value = '';
