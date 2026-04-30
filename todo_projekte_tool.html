@@ -1953,6 +1953,7 @@
         throw error;
       }
       isDirty = false;
+      lastWriteFailed = false;
       setStatus(
         'ok',
         'Datei verbunden',
@@ -1968,12 +1969,14 @@
       try {
         await saveChain;
       } catch (error) {
+        lastWriteFailed = true;
         setStatus(
           'err',
           'Speichern fehlgeschlagen',
-          'Die Datei konnte nicht geschrieben werden. Bitte den Zugriff erneut erlauben oder den Ordner neu verbinden.',
+          'Die Datei konnte nicht geschrieben werden. Bearbeitung ist pausiert; ungespeicherte Aenderungen bleiben im Browser erhalten.',
           error?.message || 'Unbekannter Fehler'
         );
+        render();
         throw error;
       }
     }
