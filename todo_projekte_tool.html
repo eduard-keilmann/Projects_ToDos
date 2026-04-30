@@ -780,6 +780,7 @@
         </div>
         <div class="row">
           <button class="btn-primary" id="connectFolderBtn">Ordner verbinden</button>
+          <button class="btn-secondary" id="chooseFolderBtn">Anderen Ordner waehlen</button>
           <button class="btn-secondary" id="regrantBtn">Zugriff erneuern</button>
           <button class="btn-secondary" id="reloadFileBtn">Datei neu laden</button>
         </div>
@@ -916,6 +917,7 @@
     let saveChain = Promise.resolve();
     let appReady = false;
     let isDirty = false;
+    let stateNeedsWriteAfterRead = false;
     let currentStatusKind = 'warn';
     let currentStatusTitle = 'Noch kein Ordner verbunden';
     let currentStatusParts = ['Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei.'];
@@ -928,6 +930,7 @@
       storageStatusText: document.getElementById('storageStatusText'),
       storageMeta: document.getElementById('storageMeta'),
       connectFolderBtn: document.getElementById('connectFolderBtn'),
+      chooseFolderBtn: document.getElementById('chooseFolderBtn'),
       regrantBtn: document.getElementById('regrantBtn'),
       reloadFileBtn: document.getElementById('reloadFileBtn'),
       newProjectName: document.getElementById('newProjectName'),
@@ -1105,6 +1108,39 @@
       }
       existingIds.add(next);
       return next;
+    }
+
+    function stateDiffersAfterNormalization(input, normalizedState) {
+      const incoming = input?.data ?? input;
+      if (input?.version !== 5) return true;
+      if (!incoming || !Array.isArray(incoming.projects)) return true;
+      if ((incoming.selectedProjectId ?? null) !== (normalizedState.selectedProjectId ?? null)) return true;
+      if ((incoming?.settings?.theme === 'light' ? 'light' : 'dark') !== normalizedState.settings.theme) return true;
+      if (incoming.projects.length !== normalizedState.projects.length) return true;
+
+      return incoming.projects.some((project, projectIndex) => {
+        const normalizedProject = normalizedState.projects[projectIndex];
+        if (!normalizedProject) return true;
+        if (String(project?.id ?? '') !== normalizedProject.id) return true;
+        if (normalizeText(project?.name, 'Unbenanntes Projekt') !== normalizedProject.name) return true;
+        if (normalizeDateTime(project?.createdAt) !== normalizedProject.createdAt) return true;
+        const tasks = Array.isArray(project?.tasks) ? project.tasks : [];
+        if (tasks.length !== normalizedProject.tasks.length) return true;
+
+        return tasks.some((task, taskIndex) => {
+          const normalizedTask = normalizedProject.tasks[taskIndex];
+          if (!normalizedTask) return true;
+          return (
+            String(task?.id ?? '') !== normalizedTask.id ||
+            normalizeText(task?.title, 'Unbenannte Aufgabe') !== normalizedTask.title ||
+            normalizeText(task?.notes, '') !== normalizedTask.notes ||
+            normalizeDateOnly(task?.dueDate) !== normalizedTask.dueDate ||
+            normalizePriority(task?.priority) !== normalizedTask.priority ||
+            normalizeBoolean(task?.done) !== normalizedTask.done ||
+            normalizeDateTime(task?.createdAt) !== normalizedTask.createdAt
+          );
+        });
+      });
     }
 
     function normalizeIncomingState(input) {
@@ -1404,6 +1440,7 @@
       els.exportBtn.disabled = !editable;
       els.importBtn.disabled = !editable;
       els.regrantBtn.disabled = !directoryHandle;
+      els.chooseFolderBtn.disabled = !supportsFileSystemAccess();
 
       if (!editable) {
         els.activeProjectTitle.textContent = 'Keine Datei geladen';
@@ -1834,6 +1871,16 @@
         } else {
           appReady = true;
           isDirty = false;
+          if (stateNeedsWriteAfterRead) {
+            setStatus(
+              'warn',
+              'Datei wird aktualisiert',
+              fileStatusMessage('Alte oder reparierte Daten werden als Version 5 nach ', ' geschrieben.'),
+              `Ordner: ${directoryHandle.name}`
+            );
+            await writeStateToDisk();
+            stateNeedsWriteAfterRead = false;
+          }
         }
 
         setStatus(
@@ -1861,7 +1908,9 @@
           return false;
         }
         const parsed = JSON.parse(text);
-        state = normalizeIncomingState(parsed);
+        const normalizedState = normalizeIncomingState(parsed);
+        stateNeedsWriteAfterRead = stateDiffersAfterNormalization(parsed, normalizedState);
+        state = normalizedState;
         ensureSelection();
         return true;
       } catch (error) {
@@ -1977,6 +2026,25 @@
       }
     }
 
+    async function chooseDifferentDirectoryFromPicker() {
+      if (!confirmDiscardUnsaved('Anderen Ordner waehlen?')) return;
+      try {
+        await pickNewDirectory();
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+        if (!directoryHandle) {
+          resetConnectionState();
+          render();
+        }
+        setStatus(
+          'err',
+          'Ordner konnte nicht verbunden werden',
+          'Bitte waehle den Ordner erneut und erlaube Lese-/Schreibzugriff.',
+          error?.message || 'Unbekannter Fehler'
+        );
+      }
+    }
+
     async function tryRestoreRememberedDirectory() {
       const remembered = await loadRememberedDirectoryHandle();
       if (!remembered) return;
@@ -2051,6 +2119,15 @@
           );
           renderStatus();
           await initializeEmptyDataFile();
+        } else if (stateNeedsWriteAfterRead) {
+          setStatus(
+            'warn',
+            'Datei wird aktualisiert',
+            fileStatusMessage('Alte oder reparierte Daten werden als Version 5 nach ', ' geschrieben.'),
+            `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
+          );
+          await writeStateToDisk();
+          stateNeedsWriteAfterRead = false;
         }
         setStatus(
           'ok',
@@ -2201,6 +2278,7 @@
     }
 
     els.connectFolderBtn.addEventListener('click', connectDirectoryFromPicker);
+    els.chooseFolderBtn.addEventListener('click', chooseDifferentDirectoryFromPicker);
     els.regrantBtn.addEventListener('click', regrantAccess);
     els.reloadFileBtn.addEventListener('click', reloadFromDisk);
     els.addProjectBtn.addEventListener('click', () => addProject(els.newProjectName.value));
