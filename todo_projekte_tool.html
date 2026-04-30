@@ -1972,9 +1972,8 @@
 
     async function saveDirtyStateAfterPermission(statusTitleText) {
       if (!isDirty) return false;
-      lastWriteFailed = false;
-      await ensureDataFileHandle(true);
       try {
+        await ensureDataFileHandle(true);
         await writeStateToDisk();
       } catch (error) {
         lastWriteFailed = true;
@@ -2417,6 +2416,9 @@
       }
       const previousState = structuredClone(state);
       const previousDirty = isDirty;
+      const previousLastWriteFailed = lastWriteFailed;
+      const previousStateNeedsWriteAfterRead = stateNeedsWriteAfterRead;
+      const previousPendingThemeBeforeConnection = pendingThemeBeforeConnection;
       try {
         const text = await file.text();
         const nextState = normalizeIncomingState(JSON.parse(text));
@@ -2427,6 +2429,9 @@
       } catch (error) {
         state = previousState;
         isDirty = previousDirty;
+        lastWriteFailed = previousLastWriteFailed;
+        stateNeedsWriteAfterRead = previousStateNeedsWriteAfterRead;
+        pendingThemeBeforeConnection = previousPendingThemeBeforeConnection;
         render();
         alert('Die Datei konnte nicht importiert werden. Bitte eine gueltige JSON-Backup-Datei waehlen.');
       } finally {
