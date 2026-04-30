@@ -1904,6 +1904,7 @@
         const text = await file.text();
         if (!text.trim()) {
           state = structuredClone(defaultState);
+          stateNeedsWriteAfterRead = false;
           ensureSelection();
           return false;
         }
@@ -1916,6 +1917,7 @@
       } catch (error) {
         if (error?.name === 'NotFoundError') {
           state = structuredClone(defaultState);
+          stateNeedsWriteAfterRead = false;
           ensureSelection();
           return false;
         }
