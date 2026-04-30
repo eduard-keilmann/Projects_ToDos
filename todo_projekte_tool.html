@@ -902,12 +902,13 @@
     const HANDLE_DB_NAME = 'projekt-todo-tool-handles';
     const HANDLE_STORE_NAME = 'keyval';
     const HANDLE_KEY = 'directory-handle';
+    const THEME_STORAGE_KEY = 'projekt-todo-tool-theme';
 
     const defaultState = {
       projects: [],
       selectedProjectId: null,
       settings: {
-        theme: 'dark'
+        theme: getRememberedTheme()
       }
     };
 
@@ -919,6 +920,7 @@
     let isDirty = false;
     let stateNeedsWriteAfterRead = false;
     let lastWriteFailed = false;
+    let pendingThemeBeforeConnection = null;
     let currentStatusKind = 'warn';
     let currentStatusTitle = 'Noch kein Ordner verbunden';
     let currentStatusParts = ['Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei.'];
@@ -968,6 +970,32 @@
 
     function supportsFileSystemAccess() {
       return typeof window.showDirectoryPicker === 'function';
+    }
+
+    function getRememberedTheme() {
+      try {
+        return localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark';
+      } catch {
+        return 'dark';
+      }
+    }
+
+    function rememberTheme(theme) {
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, theme === 'light' ? 'light' : 'dark');
+      } catch {
+        // Best effort only. Theme still works for the current page session.
+      }
+    }
+
+    function createEmptyState() {
+      return {
+        projects: [],
+        selectedProjectId: null,
+        settings: {
+          theme: pendingThemeBeforeConnection || getRememberedTheme()
+        }
+      };
     }
 
     function fileStatusMessage(prefix, suffix = '') {
@@ -1842,7 +1870,7 @@
     }
 
     async function initializeEmptyDataFile() {
-      state = structuredClone(defaultState);
+      state = createEmptyState();
       ensureSelection();
       markDirty();
 
@@ -1857,6 +1885,7 @@
           throw secondError || firstError;
         }
       }
+      pendingThemeBeforeConnection = null;
       appReady = true;
       render();
     }
@@ -1889,7 +1918,9 @@
             );
             await writeStateToDisk();
             stateNeedsWriteAfterRead = false;
+            pendingThemeBeforeConnection = null;
           }
+          pendingThemeBeforeConnection = null;
         }
 
         setStatus(
@@ -1912,7 +1943,7 @@
         const file = await dataFileHandle.getFile();
         const text = await file.text();
         if (!text.trim()) {
-          state = structuredClone(defaultState);
+          state = createEmptyState();
           stateNeedsWriteAfterRead = false;
           ensureSelection();
           return false;
@@ -1921,11 +1952,18 @@
         const normalizedState = normalizeIncomingState(parsed);
         stateNeedsWriteAfterRead = stateDiffersAfterNormalization(parsed, normalizedState);
         state = normalizedState;
+        if (pendingThemeBeforeConnection) {
+          state.settings = state.settings || { theme: 'dark' };
+          if (state.settings.theme !== pendingThemeBeforeConnection) {
+            state.settings.theme = pendingThemeBeforeConnection;
+            stateNeedsWriteAfterRead = true;
+          }
+        }
         ensureSelection();
         return true;
       } catch (error) {
         if (error?.name === 'NotFoundError') {
-          state = structuredClone(defaultState);
+          state = createEmptyState();
           stateNeedsWriteAfterRead = false;
           ensureSelection();
           return false;
@@ -2142,7 +2180,9 @@
           );
           await writeStateToDisk();
           stateNeedsWriteAfterRead = false;
+          pendingThemeBeforeConnection = null;
         }
+        pendingThemeBeforeConnection = null;
         setStatus(
           'ok',
           'Datei neu geladen',
@@ -2351,9 +2391,11 @@
     els.themeSelect.addEventListener('change', async event => {
       state.settings = state.settings || { theme: 'dark' };
       state.settings.theme = event.target.value === 'light' ? 'light' : 'dark';
+      rememberTheme(state.settings.theme);
       if (isEditingEnabled()) {
         await persistAndRender();
       } else {
+        pendingThemeBeforeConnection = state.settings.theme;
         render();
       }
     });
