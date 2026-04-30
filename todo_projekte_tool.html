@@ -930,15 +930,6 @@
     const HANDLE_KEY = 'directory-handle';
     const THEME_STORAGE_KEY = 'projekt-todo-tool-theme';
 
-    const defaultState = {
-      projects: [],
-      selectedProjectId: null,
-      settings: {
-        theme: getRememberedTheme()
-      }
-    };
-
-    let state = structuredClone(defaultState);
     let directoryHandle = null;
     let dataFileHandle = null;
     let saveChain = Promise.resolve();
@@ -947,6 +938,7 @@
     let stateNeedsWriteAfterRead = false;
     let lastWriteFailed = false;
     let pendingThemeBeforeConnection = null;
+    let state = createEmptyState();
     let currentStatusKind = 'warn';
     let currentStatusTitle = 'Noch kein Ordner verbunden';
     let currentStatusParts = ['Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei.'];
@@ -1257,6 +1249,7 @@
     function renderProjectList() {
       els.projectList.replaceChildren();
       els.projectCount.textContent = `${state.projects.length}`;
+      const editable = isEditingEnabled();
 
       if (!state.projects.length) {
         const empty = document.createElement('div');
@@ -1277,10 +1270,16 @@
         const dragHandle = document.createElement('div');
         dragHandle.className = 'project-drag-handle';
         dragHandle.textContent = '::';
-        dragHandle.draggable = true;
-        dragHandle.title = 'Projektreihenfolge per Ziehen aendern';
+        dragHandle.draggable = editable;
+        dragHandle.title = editable
+          ? 'Projektreihenfolge per Ziehen aendern'
+          : 'Sortieren ist erst nach erfolgreichem Speichern wieder moeglich';
         dragHandle.setAttribute('aria-label', `Projekt ${project.name} per Drag-and-drop sortieren`);
         dragHandle.addEventListener('dragstart', event => {
+          if (!editable) {
+            event.preventDefault();
+            return;
+          }
           draggedProjectId = project.id;
           clearProjectDragIndicators();
           entry.classList.add('dragging');
@@ -1303,9 +1302,10 @@
         moveProjectUpBtn.textContent = 'Up';
         moveProjectUpBtn.title = 'Projekt nach oben verschieben';
         moveProjectUpBtn.setAttribute('aria-label', `Projekt ${project.name} nach oben verschieben`);
-        moveProjectUpBtn.disabled = state.projects[0]?.id === project.id;
+        moveProjectUpBtn.disabled = !editable || state.projects[0]?.id === project.id;
         moveProjectUpBtn.addEventListener('click', async event => {
           event.stopPropagation();
+          if (!editable) return;
           if (moveProjectByStep(project.id, -1)) {
             await persistAndRender();
           }
@@ -1316,9 +1316,10 @@
         moveProjectDownBtn.textContent = 'Down';
         moveProjectDownBtn.title = 'Projekt nach unten verschieben';
         moveProjectDownBtn.setAttribute('aria-label', `Projekt ${project.name} nach unten verschieben`);
-        moveProjectDownBtn.disabled = state.projects[state.projects.length - 1]?.id === project.id;
+        moveProjectDownBtn.disabled = !editable || state.projects[state.projects.length - 1]?.id === project.id;
         moveProjectDownBtn.addEventListener('click', async event => {
           event.stopPropagation();
+          if (!editable) return;
           if (moveProjectByStep(project.id, 1)) {
             await persistAndRender();
           }
@@ -1327,6 +1328,7 @@
         dragWrap.appendChild(projectOrderActions);
 
         entry.addEventListener('dragover', event => {
+          if (!editable) return;
           if (!draggedProjectId || draggedProjectId === project.id) return;
           event.preventDefault();
           const rect = entry.getBoundingClientRect();
@@ -1339,6 +1341,7 @@
           entry.classList.remove('drag-over-top', 'drag-over-bottom');
         });
         entry.addEventListener('drop', async event => {
+          if (!editable) return;
           if (!draggedProjectId || draggedProjectId === project.id) return;
           event.preventDefault();
           event.stopPropagation();
@@ -1354,6 +1357,7 @@
         const selectBtn = document.createElement('button');
         selectBtn.type = 'button';
         selectBtn.className = 'project-select';
+        selectBtn.disabled = !editable;
         const projectCounts = counts(project);
         const projectNameLine = document.createElement('div');
         const projectName = document.createElement('strong');
@@ -1364,6 +1368,7 @@
         projectMeta.textContent = `${projectCounts.total} ToDos - ${projectCounts.open} offen - ${projectCounts.done} erledigt`;
         selectBtn.append(projectNameLine, projectMeta);
         selectBtn.addEventListener('click', async () => {
+          if (!editable) return;
           state.selectedProjectId = project.id;
           await persistAndRender();
         });
@@ -2277,6 +2282,8 @@
       } catch (error) {
         if (!isDirty) {
           resetConnectionState();
+        } else {
+          return;
         }
         setStatus(
           'err',
