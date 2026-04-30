@@ -792,7 +792,7 @@
           <h2>Neues Projekt</h2>
         </div>
         <div class="row">
-          <input id="newProjectName" type="text" placeholder="z. B. Website Relaunch" />
+          <input id="newProjectName" type="text" placeholder="z. B. Website Relaunch" aria-label="Neuer Projektname" />
           <button class="btn-primary" id="addProjectBtn">Projekt anlegen</button>
         </div>
       </div>
@@ -865,7 +865,7 @@
               </select>
             </div>
             <div class="editor-body">
-              <textarea id="taskTitle" class="inline-title-input" placeholder="Neues ToDo schreiben und mit Shift+Enter anlegen" autocomplete="off" rows="1"></textarea>
+              <textarea id="taskTitle" class="inline-title-input" placeholder="Neues ToDo schreiben und mit Shift+Enter anlegen" autocomplete="off" rows="1" aria-label="Neues ToDo"></textarea>
               <div class="editor-subrow">
                 <div class="editor-side">
                   <label for="taskDueDate" class="muted editor-label">Faelligkeit (optional)</label>
@@ -882,12 +882,12 @@
       </section>
 
       <section class="toolbar">
-        <select id="filterSelect" style="max-width: 220px;">
+        <select id="filterSelect" style="max-width: 220px;" aria-label="Aufgabenfilter">
           <option value="all">Alle Aufgaben</option>
           <option value="open">Nur offen</option>
           <option value="done">Nur erledigt</option>
         </select>
-        <input id="searchInput" type="text" placeholder="ToDos durchsuchen" style="max-width: 280px;" />
+        <input id="searchInput" type="text" placeholder="ToDos durchsuchen" style="max-width: 280px;" aria-label="ToDos durchsuchen" />
         <div class="spacer"></div>
         <span class="muted" id="visibleTaskCount">0 sichtbar</span>
       </section>
