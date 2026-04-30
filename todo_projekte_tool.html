@@ -1255,7 +1255,7 @@
     }
 
     function renderProjectList() {
-      els.projectList.innerHTML = '';
+      els.projectList.replaceChildren();
       els.projectCount.textContent = `${state.projects.length}`;
 
       if (!state.projects.length) {
@@ -1558,7 +1558,7 @@
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
         els.visibleTaskCount.textContent = '0 sichtbar';
-        els.taskList.innerHTML = '';
+        els.taskList.replaceChildren();
         els.emptyState.classList.remove('hidden');
         els.emptyState.textContent = hasBlockedUnsavedChanges
           ? 'Ungespeicherte Aenderungen bleiben im Browser erhalten. Erneuere den Zugriff, um sie in die Datei zu schreiben.'
@@ -1573,7 +1573,7 @@
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
         els.visibleTaskCount.textContent = '0 sichtbar';
-        els.taskList.innerHTML = '';
+        els.taskList.replaceChildren();
         els.emptyState.classList.remove('hidden');
         els.emptyState.textContent = 'Noch keine Projekte vorhanden.';
         return;
@@ -1588,7 +1588,7 @@
 
       const filteredTasks = getFilteredTasks(project);
       els.visibleTaskCount.textContent = `${filteredTasks.length} sichtbar`;
-      els.taskList.innerHTML = '';
+      els.taskList.replaceChildren();
       const taskReorderEnabled = els.filterSelect.value === 'all' && !els.searchInput.value.trim();
       if (!taskReorderEnabled && project.tasks.length) {
         els.visibleTaskCount.textContent = `${filteredTasks.length} sichtbar - Sortieren nur ohne Suche/Filter`;
