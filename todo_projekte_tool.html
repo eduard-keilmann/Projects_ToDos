@@ -2444,7 +2444,7 @@
       const ok = confirm('Wirklich alle Projekte und ToDos loeschen? Die verbundene JSON-Datei wird dabei geleert.');
       if (!ok) return;
       const theme = state?.settings?.theme === 'light' ? 'light' : 'dark';
-      state = structuredClone(defaultState);
+      state = createEmptyState();
       state.settings.theme = theme;
       await persistAndRender();
     }
