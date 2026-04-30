@@ -1728,11 +1728,12 @@
         const prioritySelect = document.createElement('select');
         prioritySelect.className = 'priority-select';
         prioritySelect.setAttribute('aria-label', 'Prioritaet');
-        prioritySelect.innerHTML = `
-          <option value="low">low</option>
-          <option value="medium">medium</option>
-          <option value="high">high</option>
-        `;
+        ['low', 'medium', 'high'].forEach(priority => {
+          const option = document.createElement('option');
+          option.value = priority;
+          option.textContent = priority;
+          prioritySelect.appendChild(option);
+        });
         prioritySelect.value = ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium';
         prioritySelect.addEventListener('change', () => {
           const currentProject = state.projects.find(p => p.id === project.id);
