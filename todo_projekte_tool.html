@@ -145,8 +145,8 @@
       align-items: stretch;
     }
 
-    .theme-switcher label {
-      font-size: 0.86rem;
+    .theme-toggle-btn {
+      width: 100%;
     }
 
     .row {
@@ -804,11 +804,7 @@
           <p class="muted" style="margin-top:8px;">Die Daten werden in einer JSON-Datei gespeichert.</p>
         </div>
         <div class="theme-switcher">
-          <label for="themeSelect" class="muted">Theme</label>
-          <select id="themeSelect">
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
+          <button type="button" id="themeToggleBtn" class="btn-secondary theme-toggle-btn" aria-label="Theme wechseln">Theme: Dark</button>
         </div>
       </div>
 
@@ -995,7 +991,7 @@
       importFile: document.getElementById('importFile'),
       resetBtn: document.getElementById('resetBtn'),
       taskFormCard: document.getElementById('taskFormCard'),
-      themeSelect: document.getElementById('themeSelect'),
+      themeToggleBtn: document.getElementById('themeToggleBtn'),
       draftCreatedAt: document.getElementById('draftCreatedAt')
     };
 
@@ -1064,8 +1060,13 @@
     function syncTheme() {
       const theme = state?.settings?.theme === 'light' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', theme);
-      if (els.themeSelect && els.themeSelect.value !== theme) {
-        els.themeSelect.value = theme;
+      if (els.themeToggleBtn) {
+        els.themeToggleBtn.textContent = `Theme: ${theme === 'light' ? 'Light' : 'Dark'}`;
+        els.themeToggleBtn.setAttribute(
+          'aria-label',
+          theme === 'light' ? 'Zu Dark Theme wechseln' : 'Zu Light Theme wechseln'
+        );
+        els.themeToggleBtn.title = theme === 'light' ? 'Zu Dark Theme wechseln' : 'Zu Light Theme wechseln';
       }
     }
 
@@ -2638,9 +2639,9 @@
     els.importFile.addEventListener('change', event => importBackup(event.target.files?.[0]));
     els.resetBtn.addEventListener('click', resetData);
 
-    els.themeSelect.addEventListener('change', async event => {
+    els.themeToggleBtn.addEventListener('click', async () => {
       state.settings = state.settings || { theme: 'dark' };
-      state.settings.theme = event.target.value === 'light' ? 'light' : 'dark';
+      state.settings.theme = state.settings.theme === 'light' ? 'dark' : 'light';
       rememberTheme(state.settings.theme);
       if (isEditingEnabled()) {
         await persistAndRender();
