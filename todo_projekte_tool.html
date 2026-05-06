@@ -913,7 +913,7 @@
             </div>
           </div>
         </div>
-        <p class="draft-hint">Nach dem Anlegen bleibt jedes ToDo direkt in der Liste editierbar. Faelligkeit und Prioritaet kannst du dort jederzeit ohne Bearbeiten-Button pflegen.</p>
+        <p class="draft-hint">Nach dem Anlegen bleibt jedes ToDo direkt in der Liste editierbar. Faelligkeit und Prioritaet koennen jederzeit ohne Bearbeiten-Button gepflegt werden.</p>
       </section>
 
       <section class="toolbar">
@@ -1839,6 +1839,7 @@
           }
           scheduleAutosave();
         });
+        const shouldShowNotesInput = typeof task.notes === 'string' && task.notes !== '';
 
         const subrow = document.createElement('div');
         subrow.className = 'editor-subrow';
@@ -1897,8 +1898,12 @@
         }
 
         autoResizeTextarea(titleInput);
-        autoResizeTextarea(notesInput);
-        body.append(titleInput, notesInput, subrow, meta);
+        if (shouldShowNotesInput) {
+          autoResizeTextarea(notesInput);
+          body.append(titleInput, notesInput, subrow, meta);
+        } else {
+          body.append(titleInput, subrow, meta);
+        }
 
         item.append(dragWrap, controlStack, body);
         els.taskList.appendChild(item);
