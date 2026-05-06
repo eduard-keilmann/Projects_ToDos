@@ -1899,8 +1899,10 @@
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
           if (!currentTask) return;
+          const taskTopBeforeDueDateChange = item.getBoundingClientRect().top;
           currentTask.dueDate = normalizeDateOnly(dueInput.value);
           renderTasks();
+          restoreTaskViewportAnchor(task.id, taskTopBeforeDueDateChange, '.editor-date-input');
           scheduleAutosave();
         });
         side.append(dueLabel, dueInput);
