@@ -226,11 +226,19 @@
       padding: 16px;
     }
 
+    .sidebar > .card {
+      padding-top: 12px;
+    }
+
+    .sidebar > .card > .row.space {
+      margin-bottom: 8px !important;
+    }
+
     .project-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: clamp(390px, 52vh, 620px);
+      max-height: clamp(460px, 58vh, 760px);
       overflow-y: auto;
       overscroll-behavior: contain;
       padding-right: 4px;
@@ -238,7 +246,7 @@
 
     .project-card {
       flex: 1 1 260px;
-      min-height: 300px;
+      min-height: 360px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -737,7 +745,7 @@
       }
 
       .project-list {
-        max-height: 390px;
+        max-height: 460px;
       }
 
       .stats {
