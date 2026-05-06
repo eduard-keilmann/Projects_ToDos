@@ -1488,6 +1488,34 @@
       });
     }
 
+    function findRenderedTaskById(taskId) {
+      if (!taskId) return null;
+      return Array.from(els.taskList.querySelectorAll('.editor-task')).find(node => node.dataset.taskId === taskId) || null;
+    }
+
+    function restoreTaskViewportAnchor(taskId, previousTop, focusSelector = '') {
+      if (!taskId || typeof previousTop !== 'number') return;
+      requestAnimationFrame(() => {
+        const taskElement = findRenderedTaskById(taskId);
+        if (!taskElement) return;
+        if (focusSelector) {
+          const focusTarget = taskElement.querySelector(focusSelector);
+          if (focusTarget?.focus) {
+            try {
+              focusTarget.focus({ preventScroll: true });
+            } catch {
+              focusTarget.focus();
+            }
+          }
+        }
+        const nextTop = taskElement.getBoundingClientRect().top;
+        const offset = nextTop - previousTop;
+        if (offset) {
+          window.scrollBy(0, offset);
+        }
+      });
+    }
+
     function reorderProjects(movedProjectId, targetProjectId, insertAfter = false) {
       if (movedProjectId === targetProjectId) return false;
       const fromIndex = state.projects.findIndex(project => project.id === movedProjectId);
@@ -1756,8 +1784,13 @@
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
           if (!currentTask) return;
+          const taskTopBeforeToggle = item.getBoundingClientRect().top;
           currentTask.done = checkbox.checked;
-          await persistAndRender();
+          await persistAndRender({
+            restoreTaskId: task.id,
+            restoreTaskTop: taskTopBeforeToggle,
+            restoreFocusSelector: '.checkbox'
+          });
         });
         controlStack.appendChild(checkbox);
 
@@ -2213,9 +2246,13 @@
       }
     }
 
-    async function persistAndRender() {
+    async function persistAndRender(options = {}) {
+      const restoreTaskId = options.restoreTaskId || '';
+      const restoreTaskTop = typeof options.restoreTaskTop === 'number' ? options.restoreTaskTop : null;
+      const restoreFocusSelector = options.restoreFocusSelector || '';
       markDirty();
       render();
+      restoreTaskViewportAnchor(restoreTaskId, restoreTaskTop, restoreFocusSelector);
       if (!isEditingEnabled()) return;
       setStatus(
         'warn',
@@ -2226,6 +2263,7 @@
       renderStatus();
       await queueWrite();
       render();
+      restoreTaskViewportAnchor(restoreTaskId, restoreTaskTop, restoreFocusSelector);
     }
 
     async function pickNewDirectory() {
