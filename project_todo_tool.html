@@ -801,7 +801,7 @@
       <div class="title-block">
         <div>
           <h1>Project ToDo Tool</h1>
-          <p class="muted" id="appStorageHint" style="margin-top:8px;">Data is stored in a JSON file.</p>
+          <p class="muted" id="appStorageHint" style="margin-top:8px;">Storage mode is determined by your browser.</p>
         </div>
         <div class="theme-switcher">
           <button type="button" id="themeToggleBtn" class="btn-secondary theme-toggle-btn" aria-label="Toggle theme">Theme: Dark</button>
@@ -813,9 +813,9 @@
           <h2 id="storageCardHeading">Storage Location</h2>
         </div>
         <div class="status-box" style="margin-bottom:12px;" aria-live="polite" aria-atomic="true">
-          <div class="status-title"><span id="statusDot" class="dot"></span><span id="storageStatusTitle">No folder connected yet</span></div>
-          <div class="muted" id="storageStatusText">Click "Connect folder" and choose the same folder as this HTML file. `project-todos.json` will be created or used there automatically.</div>
-          <div class="footer-note" id="storageMeta">No file connection active yet.</div>
+          <div class="status-title"><span id="statusDot" class="dot"></span><span id="storageStatusTitle">Initializing Storage</span></div>
+          <div class="muted" id="storageStatusText">The app is checking browser support and loading the active storage mode.</div>
+          <div class="footer-note" id="storageMeta">Storage actions become available after initialization.</div>
         </div>
         <div class="row" id="storageActionRow">
           <button class="btn-primary" id="connectFolderBtn">Connect Folder</button>
@@ -859,10 +859,10 @@
     <main class="panel main">
       <div id="compatibilityBanner" class="banner hidden"></div>
 
-      <div class="topbar">
+        <div class="topbar">
         <div>
-          <h1 id="activeProjectTitle">No File Loaded</h1>
-          <p class="muted" id="activeProjectSubtitle" style="margin-top:8px;">Connect a folder first so the tool can work with file-based storage.</p>
+          <h1 id="activeProjectTitle">Loading...</h1>
+          <p class="muted" id="activeProjectSubtitle" style="margin-top:8px;">The app is initializing the current storage mode.</p>
         </div>
         <div class="row">
           <button class="btn-secondary hidden" id="renameProjectBtn">Rename Project</button>
@@ -932,7 +932,7 @@
       </section>
 
       <section id="taskList" class="task-list"></section>
-      <div id="emptyState" class="empty">Connect a folder to the data file first.</div>
+      <div id="emptyState" class="empty">The app is initializing.</div>
     </main>
   </div>
 
