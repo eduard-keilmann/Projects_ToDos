@@ -1292,11 +1292,17 @@
       return JSON.parse(JSON.stringify(value));
     }
 
-    function normalizeDateTime(value) {
+    function normalizeDateTime(value, fallbackValue = '') {
       if (typeof value === 'string') {
         const parsed = new Date(value);
         if (!Number.isNaN(parsed.getTime())) {
           return parsed.toISOString();
+        }
+      }
+      if (typeof fallbackValue === 'string' && fallbackValue) {
+        const fallbackParsed = new Date(fallbackValue);
+        if (!Number.isNaN(fallbackParsed.getTime())) {
+          return fallbackParsed.toISOString();
         }
       }
       return new Date().toISOString();
@@ -1338,7 +1344,7 @@
         if (!normalizedProject) return true;
         if (String(project?.id ?? '') !== normalizedProject.id) return true;
         if (normalizeText(project?.name, 'Untitled Project') !== normalizedProject.name) return true;
-        if (normalizeDateTime(project?.createdAt) !== normalizedProject.createdAt) return true;
+        if (normalizeDateTime(project?.createdAt, normalizedProject.createdAt) !== normalizedProject.createdAt) return true;
         const tasks = Array.isArray(project?.tasks) ? project.tasks : [];
         if (tasks.length !== normalizedProject.tasks.length) return true;
 
@@ -1352,7 +1358,7 @@
             normalizeDateOnly(task?.dueDate) !== normalizedTask.dueDate ||
             normalizePriority(task?.priority) !== normalizedTask.priority ||
             normalizeBoolean(task?.done) !== normalizedTask.done ||
-            normalizeDateTime(task?.createdAt) !== normalizedTask.createdAt
+            normalizeDateTime(task?.createdAt, normalizedTask.createdAt) !== normalizedTask.createdAt
           );
         });
       });
@@ -1364,6 +1370,7 @@
         throw new Error('Invalid data structure');
       }
 
+      const normalizationTimestamp = new Date().toISOString();
       const projectIds = new Set();
       const projects = incoming.projects.map(project => {
         const taskIds = new Set();
@@ -1375,14 +1382,14 @@
               dueDate: normalizeDateOnly(task?.dueDate),
               priority: normalizePriority(task?.priority),
               done: normalizeBoolean(task?.done),
-              createdAt: normalizeDateTime(task?.createdAt)
+              createdAt: normalizeDateTime(task?.createdAt, normalizationTimestamp)
             }))
           : [];
 
         return {
           id: ensureUniqueId('project', projectIds, project?.id),
           name: normalizeText(project?.name, 'Untitled Project'),
-          createdAt: normalizeDateTime(project?.createdAt),
+          createdAt: normalizeDateTime(project?.createdAt, normalizationTimestamp),
           tasks
         };
       });
@@ -2178,6 +2185,7 @@
         return await new Promise((resolve, reject) => {
           const tx = db.transaction(BROWSER_STATE_STORE_NAME, 'readonly');
           const request = tx.objectStore(BROWSER_STATE_STORE_NAME).get(key);
+          tx.onabort = () => reject(tx.error || new Error('Browser storage read was aborted'));
           request.onsuccess = () => resolve(request.result ?? null);
           request.onerror = () => reject(request.error);
         });
@@ -2194,6 +2202,7 @@
           const tx = db.transaction(BROWSER_STATE_STORE_NAME, 'readwrite');
           tx.objectStore(BROWSER_STATE_STORE_NAME).put(value, key);
           tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error || new Error('Browser storage write was aborted'));
           tx.onerror = () => reject(tx.error);
         });
       } finally {
@@ -2214,6 +2223,7 @@
           const tx = db.transaction(HANDLE_STORE_NAME, 'readwrite');
           tx.objectStore(HANDLE_STORE_NAME).put(handle, HANDLE_KEY);
           tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error || new Error('Handle storage write was aborted'));
           tx.onerror = () => reject(tx.error);
         });
       } catch {
@@ -2230,6 +2240,7 @@
         const value = await new Promise((resolve, reject) => {
           const tx = db.transaction(HANDLE_STORE_NAME, 'readonly');
           const request = tx.objectStore(HANDLE_STORE_NAME).get(HANDLE_KEY);
+          tx.onabort = () => reject(tx.error || new Error('Handle storage read was aborted'));
           request.onsuccess = () => resolve(request.result || null);
           request.onerror = () => reject(request.error);
         });
@@ -2249,6 +2260,7 @@
           const tx = db.transaction(HANDLE_STORE_NAME, 'readwrite');
           tx.objectStore(HANDLE_STORE_NAME).delete(HANDLE_KEY);
           tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error || new Error('Handle storage delete was aborted'));
           tx.onerror = () => reject(tx.error);
         });
       } catch {
