@@ -1769,21 +1769,18 @@
       if (!editable && !reviewOnlyMode) {
         const unsupportedBrowser = !isSupportedBrowser();
         const hasBlockedUnsavedChanges = appReady && (browserMode || !!dataFileHandle) && lastWriteFailed;
-        const browserStorageUnavailable = browserMode && !supportsBrowserStorage();
         els.activeProjectTitle.textContent = hasBlockedUnsavedChanges
           ? 'Save Failed'
-          : (unsupportedBrowser ? 'Browser Not Supported' : (browserStorageUnavailable ? 'Browser Not Supported' : (browserMode ? 'Browser Storage Loading' : 'No File Loaded')));
+          : (unsupportedBrowser ? 'Browser Not Supported' : (browserMode ? 'Browser Storage Loading' : 'No File Loaded'));
         els.activeProjectSubtitle.textContent = hasBlockedUnsavedChanges
           ? (browserMode
             ? 'Editing is paused so no further unsaved changes are created. Reload the page after exporting a backup if needed.'
             : 'Editing is paused so no further unsaved changes are created. Restore access or reconnect the folder.')
           : (unsupportedBrowser
             ? 'This browser is outside the supported storage modes for this app.'
-            : (browserStorageUnavailable
-            ? 'This browser cannot open the app with browser storage or file mode.'
             : (browserMode
             ? 'Browser storage is starting up for this app.'
-            : 'Connect a folder first so the tool can work with file-based storage.')));
+            : 'Connect a folder first so the tool can work with file-based storage.'));
         els.statTotal.textContent = '0';
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
@@ -1796,9 +1793,7 @@
             : 'Unsaved changes remain in the browser. Restore access to write them to the file.')
           : (unsupportedBrowser
             ? 'Use current Chrome, Opera, or Safari.'
-            : (browserStorageUnavailable
-            ? 'Use current Chrome, Opera, or Safari.'
-            : (browserMode ? 'Browser storage is not ready yet.' : 'Connect a folder to the data file first.')));
+            : (browserMode ? 'Browser storage is not ready yet.' : 'Connect a folder to the data file first.'));
         return;
       }
 
