@@ -888,7 +888,7 @@
       <section class="card" id="taskFormCard">
         <div class="row space" style="margin-bottom:8px;">
           <h2>Quick Entry</h2>
-          <span class="muted">Shift+Enter = new ToDo</span>
+          <span class="muted">Enter = new ToDo, Shift+Enter = line break</span>
         </div>
         <div class="quick-entry-shell">
           <div class="editor-task">
@@ -904,7 +904,7 @@
               </select>
             </div>
             <div class="editor-body">
-              <textarea id="taskTitle" class="inline-title-input" placeholder="Write a new ToDo and create it with Shift+Enter" autocomplete="off" rows="1" aria-label="New ToDo"></textarea>
+              <textarea id="taskTitle" class="inline-title-input" placeholder="Write a new ToDo and create it with Enter" autocomplete="off" rows="1" aria-label="New ToDo"></textarea>
               <div class="editor-subrow">
                 <div class="editor-side">
                   <label for="taskDueDate" class="muted editor-label">Due Date (optional)</label>
@@ -2973,7 +2973,7 @@
     });
     els.taskTitle.addEventListener('input', () => autoResizeTextarea(els.taskTitle));
     els.taskTitle.addEventListener('keydown', event => {
-      if (event.key === 'Enter' && event.shiftKey) {
+      if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         addTask();
       }
