@@ -1026,12 +1026,26 @@
       return isAppleSafari && !isOtherBrowser;
     }
 
+    function isChromeOrOperaBrowser() {
+      const userAgent = navigator.userAgent || '';
+      const vendor = navigator.vendor || '';
+      const isOpera = /(OPR|OPiOS)/i.test(userAgent);
+      if (isOpera) return true;
+      const isGoogleChrome = /Google Inc\./i.test(vendor) && /(Chrome|Chromium|CriOS)/i.test(userAgent);
+      const isExcludedChromiumVariant = /(Edg|Brave|Vivaldi|DuckDuckGo|SamsungBrowser|YaBrowser)/i.test(userAgent);
+      return isGoogleChrome && !isExcludedChromiumVariant;
+    }
+
+    function supportsChromeOrOperaFileMode() {
+      return supportsFileSystemAccess() && isChromeOrOperaBrowser();
+    }
+
     function supportsSafariBrowserStorageMode() {
       return !supportsFileSystemAccess() && supportsBrowserStorage() && isSafariBrowser();
     }
 
     function isSupportedBrowser() {
-      return supportsFileSystemAccess() || supportsSafariBrowserStorageMode();
+      return supportsChromeOrOperaFileMode() || supportsSafariBrowserStorageMode();
     }
 
     function usesBrowserStorageMode() {
