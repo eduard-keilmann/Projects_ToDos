@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Projekt ToDo Tool - dateibasiert</title>
+  <title>Project ToDo Tool - file-based</title>
   <style>
 
     :root {
@@ -800,45 +800,45 @@
     <aside class="panel sidebar">
       <div class="title-block">
         <div>
-          <h1>Projekt ToDo Tool</h1>
-          <p class="muted" style="margin-top:8px;">Die Daten werden in einer JSON-Datei gespeichert.</p>
+          <h1>Project ToDo Tool</h1>
+          <p class="muted" style="margin-top:8px;">Data is stored in a JSON file.</p>
         </div>
         <div class="theme-switcher">
-          <button type="button" id="themeToggleBtn" class="btn-secondary theme-toggle-btn" aria-label="Theme wechseln">Theme: Dark</button>
+          <button type="button" id="themeToggleBtn" class="btn-secondary theme-toggle-btn" aria-label="Toggle theme">Theme: Dark</button>
         </div>
       </div>
 
       <div class="card">
         <div class="row space" style="margin-bottom:12px;">
-          <h2>Speicherort</h2>
+          <h2>Storage Location</h2>
         </div>
         <div class="status-box" style="margin-bottom:12px;" aria-live="polite" aria-atomic="true">
-          <div class="status-title"><span id="statusDot" class="dot"></span><span id="storageStatusTitle">Noch kein Ordner verbunden</span></div>
-          <div class="muted" id="storageStatusText">Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei. Dort wird automatisch projekt-todos.json angelegt bzw. verwendet.</div>
-          <div class="footer-note" id="storageMeta">Noch keine Dateiverbindung aktiv.</div>
+          <div class="status-title"><span id="statusDot" class="dot"></span><span id="storageStatusTitle">No folder connected yet</span></div>
+          <div class="muted" id="storageStatusText">Click "Connect folder" and choose the same folder as this HTML file. `projekt-todos.json` will be created or used there automatically.</div>
+          <div class="footer-note" id="storageMeta">No file connection active yet.</div>
         </div>
         <div class="row">
-          <button class="btn-primary" id="connectFolderBtn">Ordner verbinden</button>
-          <button class="btn-secondary" id="chooseFolderBtn">Anderen Ordner waehlen</button>
-          <button class="btn-secondary" id="regrantBtn">Zugriff erneuern</button>
-          <button class="btn-secondary" id="reloadFileBtn">Datei neu laden</button>
+          <button class="btn-primary" id="connectFolderBtn">Connect Folder</button>
+          <button class="btn-secondary" id="chooseFolderBtn">Choose Different Folder</button>
+          <button class="btn-secondary" id="regrantBtn">Restore Access</button>
+          <button class="btn-secondary" id="reloadFileBtn">Reload File</button>
         </div>
-        <p class="footer-note" style="margin-top:12px;">Jede Aenderung wird automatisch in die Datei geschrieben, sobald der Ordner verbunden ist.</p>
+        <p class="footer-note" style="margin-top:12px;">Every change is written to the file automatically once the folder is connected.</p>
       </div>
 
       <div class="card">
         <div class="row space" style="margin-bottom:12px;">
-          <h2>Neues Projekt</h2>
+          <h2>New Project</h2>
         </div>
         <div class="row">
-          <input id="newProjectName" type="text" placeholder="z. B. Website Relaunch" aria-label="Neuer Projektname" />
-          <button class="btn-primary" id="addProjectBtn">Projekt anlegen</button>
+          <input id="newProjectName" type="text" placeholder="e.g. Website Relaunch" aria-label="New project name" />
+          <button class="btn-primary" id="addProjectBtn">Create Project</button>
         </div>
       </div>
 
       <div class="card project-card">
         <div class="row space" style="margin-bottom:12px;">
-          <h2>Projekte</h2>
+          <h2>Projects</h2>
           <span class="muted" id="projectCount">0</span>
         </div>
         <div id="projectList" class="project-list"></div>
@@ -847,12 +847,12 @@
       <div class="card">
         <h2 style="margin-bottom:12px;">Extras</h2>
         <div class="row">
-          <button class="btn-secondary" id="exportBtn">Backup exportieren</button>
-          <button class="btn-secondary" id="importBtn">Backup importieren</button>
+          <button class="btn-secondary" id="exportBtn">Export Backup</button>
+          <button class="btn-secondary" id="importBtn">Import Backup</button>
           <input id="importFile" type="file" accept="application/json" class="hidden" />
-          <button class="btn-danger" id="resetBtn">Alles loeschen</button>
+          <button class="btn-danger" id="resetBtn">Delete Everything</button>
         </div>
-        <p class="footer-note" style="margin-top:12px;">Hinweis: "Alles loeschen" leert auch die verbundene JSON-Datei. Mit Export kannst du vorher ein Backup ziehen.</p>
+        <p class="footer-note" style="margin-top:12px;">Note: "Delete Everything" also clears the connected JSON file. Use export first if you want a backup.</p>
       </div>
     </aside>
 
@@ -861,34 +861,34 @@
 
       <div class="topbar">
         <div>
-          <h1 id="activeProjectTitle">Keine Datei geladen</h1>
-          <p class="muted" id="activeProjectSubtitle" style="margin-top:8px;">Verbinde zuerst einen Ordner, damit das Tool dateibasiert arbeiten kann.</p>
+          <h1 id="activeProjectTitle">No File Loaded</h1>
+          <p class="muted" id="activeProjectSubtitle" style="margin-top:8px;">Connect a folder first so the tool can work with file-based storage.</p>
         </div>
         <div class="row">
-          <button class="btn-secondary hidden" id="renameProjectBtn">Projekt umbenennen</button>
-          <button class="btn-danger hidden" id="deleteProjectBtn">Projekt loeschen</button>
+          <button class="btn-secondary hidden" id="renameProjectBtn">Rename Project</button>
+          <button class="btn-danger hidden" id="deleteProjectBtn">Delete Project</button>
         </div>
       </div>
 
       <div class="stats">
         <div class="stat-box">
-          <div class="muted">Gesamt</div>
+          <div class="muted">Total</div>
           <div class="stat-number" id="statTotal">0</div>
         </div>
         <div class="stat-box">
-          <div class="muted">Offen</div>
+          <div class="muted">Open</div>
           <div class="stat-number" id="statOpen">0</div>
         </div>
         <div class="stat-box">
-          <div class="muted">Erledigt</div>
+          <div class="muted">Done</div>
           <div class="stat-number" id="statDone">0</div>
         </div>
       </div>
 
       <section class="card" id="taskFormCard">
         <div class="row space" style="margin-bottom:8px;">
-          <h2>Schnellerfassung</h2>
-          <span class="muted">Shift+Enter = neues ToDo</span>
+          <h2>Quick Entry</h2>
+          <span class="muted">Shift+Enter = new ToDo</span>
         </div>
         <div class="quick-entry-shell">
           <div class="editor-task">
@@ -897,42 +897,42 @@
             </div>
             <div class="editor-control-stack">
               <div class="editor-check-preview" aria-hidden="true"></div>
-              <select id="taskPriority" class="priority-select" aria-label="Prioritaet fuer neues ToDo">
+              <select id="taskPriority" class="priority-select" aria-label="Priority for new ToDo">
                 <option value="low">low</option>
                 <option value="medium" selected>medium</option>
                 <option value="high">high</option>
               </select>
             </div>
             <div class="editor-body">
-              <textarea id="taskTitle" class="inline-title-input" placeholder="Neues ToDo schreiben und mit Shift+Enter anlegen" autocomplete="off" rows="1" aria-label="Neues ToDo"></textarea>
+              <textarea id="taskTitle" class="inline-title-input" placeholder="Write a new ToDo and create it with Shift+Enter" autocomplete="off" rows="1" aria-label="New ToDo"></textarea>
               <div class="editor-subrow">
                 <div class="editor-side">
-                  <label for="taskDueDate" class="muted editor-label">Faelligkeit (optional)</label>
+                  <label for="taskDueDate" class="muted editor-label">Due Date (optional)</label>
                   <input id="taskDueDate" class="editor-date-input" type="date" />
                 </div>
               </div>
               <div class="editor-meta-line">
-                <span class="editor-meta-tag">Erstellt automatisch: <span id="draftCreatedAt"></span></span>
+                <span class="editor-meta-tag">Created automatically: <span id="draftCreatedAt"></span></span>
               </div>
             </div>
           </div>
         </div>
-        <p class="draft-hint">Nach dem Anlegen bleibt jedes ToDo direkt in der Liste editierbar. Faelligkeit und Prioritaet koennen jederzeit ohne Bearbeiten-Button gepflegt werden.</p>
+        <p class="draft-hint">After creation, each ToDo stays directly editable in the list. Due date and priority can be updated at any time without an edit button.</p>
       </section>
 
       <section class="toolbar">
-        <select id="filterSelect" style="max-width: 220px;" aria-label="Aufgabenfilter">
-          <option value="all">Alle Aufgaben</option>
-          <option value="open">Nur offen</option>
-          <option value="done">Nur erledigt</option>
+        <select id="filterSelect" style="max-width: 220px;" aria-label="Task filter">
+          <option value="all">All Tasks</option>
+          <option value="open">Open Only</option>
+          <option value="done">Done Only</option>
         </select>
-        <input id="searchInput" type="text" placeholder="ToDos durchsuchen" style="max-width: 280px;" aria-label="ToDos durchsuchen" />
+        <input id="searchInput" type="text" placeholder="Search ToDos" style="max-width: 280px;" aria-label="Search ToDos" />
         <div class="spacer"></div>
-        <span class="muted" id="visibleTaskCount">0 sichtbar</span>
+        <span class="muted" id="visibleTaskCount">0 visible</span>
       </section>
 
       <section id="taskList" class="task-list"></section>
-      <div id="emptyState" class="empty">Verbinde zuerst einen Ordner mit der Daten-Datei.</div>
+      <div id="emptyState" class="empty">Connect a folder to the data file first.</div>
     </main>
   </div>
 
@@ -953,9 +953,9 @@
     let pendingThemeBeforeConnection = null;
     let state = createEmptyState();
     let currentStatusKind = 'warn';
-    let currentStatusTitle = 'Noch kein Ordner verbunden';
-    let currentStatusParts = ['Klicke auf "Ordner verbinden" und waehle denselben Ordner wie diese HTML-Datei.'];
-    let currentStatusMeta = 'Noch keine Dateiverbindung aktiv.';
+    let currentStatusTitle = 'No folder connected yet';
+    let currentStatusParts = ['Click "Connect Folder" and choose the same folder as this HTML file.'];
+    let currentStatusMeta = 'No file connection active yet.';
 
     const els = {
       compatibilityBanner: document.getElementById('compatibilityBanner'),
@@ -1064,9 +1064,9 @@
         els.themeToggleBtn.textContent = `Theme: ${theme === 'light' ? 'Light' : 'Dark'}`;
         els.themeToggleBtn.setAttribute(
           'aria-label',
-          theme === 'light' ? 'Zu Dark Theme wechseln' : 'Zu Light Theme wechseln'
+          theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'
         );
-        els.themeToggleBtn.title = theme === 'light' ? 'Zu Dark Theme wechseln' : 'Zu Light Theme wechseln';
+        els.themeToggleBtn.title = theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme';
       }
     }
 
@@ -1093,7 +1093,7 @@
       const cleanDate = normalizeDateOnly(dateString);
       if (!cleanDate) return null;
       const date = new Date(`${cleanDate}T00:00:00`);
-      return new Intl.DateTimeFormat('de-DE', {
+      return new Intl.DateTimeFormat('en-US', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
@@ -1107,11 +1107,11 @@
       const current = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const due = new Date(`${cleanDate}T00:00:00`);
       const diff = Math.round((due - current) / 86400000);
-      if (diff === 0) return 'Heute faellig';
-      if (diff === 1) return 'Morgen faellig';
-      if (diff === -1) return 'Gestern faellig';
-      if (diff > 1) return `In ${diff} Tagen faellig`;
-      return `Seit ${Math.abs(diff)} Tagen ueberfaellig`;
+      if (diff === 0) return 'Due today';
+      if (diff === 1) return 'Due tomorrow';
+      if (diff === -1) return 'Was due yesterday';
+      if (diff > 1) return `Due in ${diff} days`;
+      return `${Math.abs(diff)} days overdue`;
     }
 
     function counts(project) {
@@ -1199,7 +1199,7 @@
         const normalizedProject = normalizedState.projects[projectIndex];
         if (!normalizedProject) return true;
         if (String(project?.id ?? '') !== normalizedProject.id) return true;
-        if (normalizeText(project?.name, 'Unbenanntes Projekt') !== normalizedProject.name) return true;
+        if (normalizeText(project?.name, 'Untitled Project') !== normalizedProject.name) return true;
         if (normalizeDateTime(project?.createdAt) !== normalizedProject.createdAt) return true;
         const tasks = Array.isArray(project?.tasks) ? project.tasks : [];
         if (tasks.length !== normalizedProject.tasks.length) return true;
@@ -1209,7 +1209,7 @@
           if (!normalizedTask) return true;
           return (
             String(task?.id ?? '') !== normalizedTask.id ||
-            normalizeText(task?.title, 'Unbenannte Aufgabe') !== normalizedTask.title ||
+            normalizeText(task?.title, 'Untitled Task') !== normalizedTask.title ||
             normalizeLongText(task?.notes, '') !== normalizedTask.notes ||
             normalizeDateOnly(task?.dueDate) !== normalizedTask.dueDate ||
             normalizePriority(task?.priority) !== normalizedTask.priority ||
@@ -1223,7 +1223,7 @@
     function normalizeIncomingState(input) {
       const incoming = input?.data ?? input;
       if (!incoming || !Array.isArray(incoming.projects)) {
-        throw new Error('Ungueltige Datenstruktur');
+        throw new Error('Invalid data structure');
       }
 
       const projectIds = new Set();
@@ -1232,7 +1232,7 @@
         const tasks = Array.isArray(project?.tasks)
           ? project.tasks.map(task => ({
               id: ensureUniqueId('task', taskIds, task?.id),
-              title: normalizeText(task?.title, 'Unbenannte Aufgabe'),
+              title: normalizeText(task?.title, 'Untitled Task'),
               notes: normalizeLongText(task?.notes, ''),
               dueDate: normalizeDateOnly(task?.dueDate),
               priority: normalizePriority(task?.priority),
@@ -1243,7 +1243,7 @@
 
         return {
           id: ensureUniqueId('project', projectIds, project?.id),
-          name: normalizeText(project?.name, 'Unbenanntes Projekt'),
+          name: normalizeText(project?.name, 'Untitled Project'),
           createdAt: normalizeDateTime(project?.createdAt),
           tasks
         };
@@ -1265,7 +1265,7 @@
 
     function createPayload() {
       return {
-        app: 'Projekt ToDo Tool',
+        app: 'Project ToDo Tool',
         version: 5,
         savedAt: new Date().toISOString(),
         data: state
@@ -1284,7 +1284,7 @@
       if (!state.projects.length) {
         const empty = document.createElement('div');
         empty.className = 'empty';
-        empty.textContent = appReady ? 'Noch keine Projekte vorhanden.' : 'Noch keine Datei verbunden.';
+        empty.textContent = appReady ? 'No projects yet.' : 'No file connected yet.';
         els.projectList.appendChild(empty);
         return;
       }
@@ -1302,9 +1302,9 @@
         dragHandle.textContent = '::';
         dragHandle.draggable = editable;
         dragHandle.title = editable
-          ? 'Projektreihenfolge per Ziehen aendern'
-          : 'Sortieren ist erst nach erfolgreichem Speichern wieder moeglich';
-        dragHandle.setAttribute('aria-label', `Projekt ${project.name} per Drag-and-drop sortieren`);
+          ? 'Drag to reorder projects'
+          : 'Sorting is available again after a successful save';
+        dragHandle.setAttribute('aria-label', `Reorder project ${project.name} with drag and drop`);
         dragHandle.addEventListener('dragstart', event => {
           if (!editable) {
             event.preventDefault();
@@ -1330,8 +1330,8 @@
         moveProjectUpBtn.type = 'button';
         moveProjectUpBtn.className = 'drag-order-btn';
         moveProjectUpBtn.textContent = 'Up';
-        moveProjectUpBtn.title = 'Projekt nach oben verschieben';
-        moveProjectUpBtn.setAttribute('aria-label', `Projekt ${project.name} nach oben verschieben`);
+        moveProjectUpBtn.title = 'Move project up';
+        moveProjectUpBtn.setAttribute('aria-label', `Move project ${project.name} up`);
         moveProjectUpBtn.disabled = !editable || state.projects[0]?.id === project.id;
         moveProjectUpBtn.addEventListener('click', async event => {
           event.stopPropagation();
@@ -1344,8 +1344,8 @@
         moveProjectDownBtn.type = 'button';
         moveProjectDownBtn.className = 'drag-order-btn';
         moveProjectDownBtn.textContent = 'Down';
-        moveProjectDownBtn.title = 'Projekt nach unten verschieben';
-        moveProjectDownBtn.setAttribute('aria-label', `Projekt ${project.name} nach unten verschieben`);
+        moveProjectDownBtn.title = 'Move project down';
+        moveProjectDownBtn.setAttribute('aria-label', `Move project ${project.name} down`);
         moveProjectDownBtn.disabled = !editable || state.projects[state.projects.length - 1]?.id === project.id;
         moveProjectDownBtn.addEventListener('click', async event => {
           event.stopPropagation();
@@ -1395,7 +1395,7 @@
         projectNameLine.appendChild(projectName);
         const projectMeta = document.createElement('div');
         projectMeta.className = 'meta';
-        projectMeta.textContent = `${projectCounts.total} ToDos - ${projectCounts.open} offen - ${projectCounts.done} erledigt`;
+        projectMeta.textContent = `${projectCounts.total} ToDos - ${projectCounts.open} open - ${projectCounts.done} done`;
         selectBtn.append(projectNameLine, projectMeta);
         selectBtn.addEventListener('click', async () => {
           if (!editable) return;
@@ -1438,9 +1438,9 @@
       markDirty();
       setStatus(
         'warn',
-        'Speichere...',
-        fileStatusMessage('Schreibe Aenderungen nach ', '.'),
-        `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
+        'Saving...',
+        fileStatusMessage('Writing changes to ', '.'),
+        `Folder: ${directoryHandle?.name || '(unknown)'}`
       );
       renderStatus();
       clearTimeout(saveTimer);
@@ -1613,59 +1613,59 @@
 
       if (!editable) {
         const hasBlockedUnsavedChanges = appReady && !!dataFileHandle && lastWriteFailed;
-        els.activeProjectTitle.textContent = hasBlockedUnsavedChanges ? 'Speichern fehlgeschlagen' : 'Keine Datei geladen';
+        els.activeProjectTitle.textContent = hasBlockedUnsavedChanges ? 'Save Failed' : 'No File Loaded';
         els.activeProjectSubtitle.textContent = hasBlockedUnsavedChanges
-          ? 'Bearbeitung ist pausiert, damit keine weiteren ungespeicherten Aenderungen entstehen. Bitte Zugriff erneuern oder Ordner neu verbinden.'
-          : 'Verbinde zuerst einen Ordner, damit das Tool dateibasiert arbeiten kann.';
+          ? 'Editing is paused so no further unsaved changes are created. Restore access or reconnect the folder.'
+          : 'Connect a folder first so the tool can work with file-based storage.';
         els.statTotal.textContent = '0';
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
-        els.visibleTaskCount.textContent = '0 sichtbar';
+        els.visibleTaskCount.textContent = '0 visible';
         els.taskList.replaceChildren();
         els.emptyState.classList.remove('hidden');
         els.emptyState.textContent = hasBlockedUnsavedChanges
-          ? 'Ungespeicherte Aenderungen bleiben im Browser erhalten. Erneuere den Zugriff, um sie in die Datei zu schreiben.'
-          : 'Verbinde zuerst einen Ordner mit der Daten-Datei.';
+          ? 'Unsaved changes remain in the browser. Restore access to write them to the file.'
+          : 'Connect a folder to the data file first.';
         return;
       }
 
       if (!project) {
-        els.activeProjectTitle.textContent = 'Kein Projekt ausgewaehlt';
-        els.activeProjectSubtitle.textContent = 'Lege links ein Projekt an, um loszulegen.';
+        els.activeProjectTitle.textContent = 'No Project Selected';
+        els.activeProjectSubtitle.textContent = 'Create a project on the left to get started.';
         els.statTotal.textContent = '0';
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
-        els.visibleTaskCount.textContent = '0 sichtbar';
+        els.visibleTaskCount.textContent = '0 visible';
         els.taskList.replaceChildren();
         els.emptyState.classList.remove('hidden');
-        els.emptyState.textContent = 'Noch keine Projekte vorhanden.';
+        els.emptyState.textContent = 'No projects yet.';
         return;
       }
 
       const projectCounts = counts(project);
       els.activeProjectTitle.textContent = project.name;
-      els.activeProjectSubtitle.textContent = `Erstellt am ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format(new Date(normalizeDateTime(project.createdAt)))}`;
+      els.activeProjectSubtitle.textContent = `Created on ${new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(normalizeDateTime(project.createdAt)))}`;
       els.statTotal.textContent = String(projectCounts.total);
       els.statOpen.textContent = String(projectCounts.open);
       els.statDone.textContent = String(projectCounts.done);
 
       const filteredTasks = getFilteredTasks(project);
-      els.visibleTaskCount.textContent = `${filteredTasks.length} sichtbar`;
+      els.visibleTaskCount.textContent = `${filteredTasks.length} visible`;
       els.taskList.replaceChildren();
       const taskReorderEnabled = els.filterSelect.value === 'all' && !els.searchInput.value.trim();
       if (!taskReorderEnabled && project.tasks.length) {
-        els.visibleTaskCount.textContent = `${filteredTasks.length} sichtbar - Sortieren nur ohne Suche/Filter`;
+        els.visibleTaskCount.textContent = `${filteredTasks.length} visible - Sorting only works without search/filter`;
       }
 
       if (!project.tasks.length) {
         els.emptyState.classList.remove('hidden');
-        els.emptyState.textContent = 'Noch keine ToDos fuer dieses Projekt.';
+        els.emptyState.textContent = 'No ToDos yet for this project.';
         return;
       }
 
       if (!filteredTasks.length) {
         els.emptyState.classList.remove('hidden');
-        els.emptyState.textContent = 'Keine ToDos entsprechen dem aktuellen Filter.';
+        els.emptyState.textContent = 'No ToDos match the current filter.';
         return;
       }
 
@@ -1684,9 +1684,9 @@
         dragHandle.textContent = '::';
         dragHandle.draggable = taskReorderEnabled;
         dragHandle.title = taskReorderEnabled
-          ? 'Reihenfolge per Ziehen aendern'
-          : 'Sortieren ist nur ohne Suche und Filter moeglich';
-        dragHandle.setAttribute('aria-label', `ToDo ${task.title || 'Ohne Titel'} per Drag-and-drop sortieren`);
+          ? 'Drag to reorder'
+          : 'Sorting is only available without search and filters';
+        dragHandle.setAttribute('aria-label', `Reorder ToDo ${task.title || 'Untitled'} with drag and drop`);
         dragHandle.addEventListener('dragstart', event => {
           if (!taskReorderEnabled) {
             event.preventDefault();
@@ -1714,9 +1714,9 @@
         moveTaskUpBtn.className = 'drag-order-btn';
         moveTaskUpBtn.textContent = 'Up';
         moveTaskUpBtn.title = taskReorderEnabled
-          ? 'ToDo nach oben verschieben'
-          : 'Sortieren ist nur ohne Suche und Filter moeglich';
-        moveTaskUpBtn.setAttribute('aria-label', `ToDo ${task.title || 'Ohne Titel'} nach oben verschieben`);
+          ? 'Move ToDo up'
+          : 'Sorting is only available without search and filters';
+        moveTaskUpBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} up`);
         moveTaskUpBtn.disabled = !taskReorderEnabled || taskIndex <= 0;
         moveTaskUpBtn.addEventListener('click', async event => {
           event.stopPropagation();
@@ -1730,9 +1730,9 @@
         moveTaskDownBtn.className = 'drag-order-btn';
         moveTaskDownBtn.textContent = 'Down';
         moveTaskDownBtn.title = taskReorderEnabled
-          ? 'ToDo nach unten verschieben'
-          : 'Sortieren ist nur ohne Suche und Filter moeglich';
-        moveTaskDownBtn.setAttribute('aria-label', `ToDo ${task.title || 'Ohne Titel'} nach unten verschieben`);
+          ? 'Move ToDo down'
+          : 'Sorting is only available without search and filters';
+        moveTaskDownBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} down`);
         moveTaskDownBtn.disabled = !taskReorderEnabled || taskIndex < 0 || taskIndex >= project.tasks.length - 1;
         moveTaskDownBtn.addEventListener('click', async event => {
           event.stopPropagation();
@@ -1779,7 +1779,7 @@
         checkbox.type = 'checkbox';
         checkbox.className = 'checkbox';
         checkbox.checked = task.done;
-        checkbox.setAttribute('aria-label', 'ToDo erledigt');
+        checkbox.setAttribute('aria-label', 'ToDo done');
         checkbox.addEventListener('change', async () => {
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
@@ -1796,7 +1796,7 @@
 
         const prioritySelect = document.createElement('select');
         prioritySelect.className = 'priority-select';
-        prioritySelect.setAttribute('aria-label', 'Prioritaet');
+        prioritySelect.setAttribute('aria-label', 'Priority');
         ['low', 'medium', 'high'].forEach(priority => {
           const option = document.createElement('option');
           option.value = priority;
@@ -1823,7 +1823,7 @@
         titleInput.className = 'inline-title-input';
         titleInput.value = task.title;
         titleInput.rows = 1;
-        titleInput.placeholder = 'ToDo-Titel';
+        titleInput.placeholder = 'ToDo title';
         titleInput.dataset.previousValue = task.title;
         titleInput.addEventListener('focus', () => {
           titleInput.dataset.previousValue = titleInput.value;
@@ -1843,7 +1843,7 @@
           if (!currentTask) return;
           const cleanTitle = titleInput.value.trim();
           if (!cleanTitle) {
-            titleInput.value = titleInput.dataset.previousValue || currentTask.title || 'Ohne Titel';
+            titleInput.value = titleInput.dataset.previousValue || currentTask.title || 'Untitled';
           }
           currentTask.title = titleInput.value.trim();
           titleInput.value = currentTask.title;
@@ -1858,8 +1858,8 @@
         notesInput.className = 'inline-notes-input';
         notesInput.value = task.notes || '';
         notesInput.rows = 1;
-        notesInput.placeholder = 'Notizen';
-        notesInput.setAttribute('aria-label', 'Notizen');
+        notesInput.placeholder = 'Notes';
+        notesInput.setAttribute('aria-label', 'Notes');
         notesInput.addEventListener('focus', () => autoResizeTextarea(notesInput));
         notesInput.addEventListener('input', () => {
           autoResizeTextarea(notesInput);
@@ -1890,7 +1890,7 @@
         side.className = 'editor-side';
         const dueLabel = document.createElement('label');
         dueLabel.className = 'muted editor-label';
-        dueLabel.textContent = 'Faelligkeit';
+        dueLabel.textContent = 'Due Date';
         const dueInput = document.createElement('input');
         dueInput.type = 'date';
         dueInput.className = 'editor-date-input';
@@ -1911,12 +1911,12 @@
         actions.className = 'editor-actions';
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn-danger mini editor-delete-btn';
-        deleteBtn.textContent = 'Loeschen';
-        deleteBtn.title = 'ToDo loeschen';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.title = 'Delete ToDo';
         deleteBtn.addEventListener('click', async () => {
           const currentProject = state.projects.find(p => p.id === project.id);
           if (!currentProject) return;
-          const ok = confirm(`ToDo "${task.title || 'Ohne Titel'}" wirklich loeschen?`);
+          const ok = confirm(`Delete ToDo "${task.title || 'Untitled'}"?`);
           if (!ok) return;
           currentProject.tasks = currentProject.tasks.filter(t => t.id !== task.id);
           await persistAndRender();
@@ -1928,16 +1928,16 @@
         meta.className = 'editor-meta-line';
         const created = document.createElement('span');
         created.className = 'editor-meta-tag';
-        created.textContent = `Erstellt: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
+        created.textContent = `Created: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
         const status = document.createElement('span');
         status.className = 'editor-meta-tag';
-        status.textContent = task.done ? 'Erledigt' : 'Offen';
+        status.textContent = task.done ? 'Done' : 'Open';
         meta.append(created, status);
         if (task.dueDate) {
           const due = document.createElement('span');
           due.className = 'editor-meta-tag';
           const dueText = relativeInfo(task.dueDate);
-          due.textContent = dueText ? `Faellig: ${formatDate(task.dueDate)} - ${dueText}` : `Faellig: ${formatDate(task.dueDate)}`;
+          due.textContent = dueText ? `Due: ${formatDate(task.dueDate)} - ${dueText}` : `Due: ${formatDate(task.dueDate)}`;
           meta.appendChild(due);
         }
 
@@ -2046,11 +2046,11 @@
     }
 
     async function ensureDataFileHandle(askPermission = false) {
-      if (!directoryHandle) throw new Error('Kein Ordner verbunden');
+      if (!directoryHandle) throw new Error('No folder connected');
       dataFileHandle = await directoryHandle.getFileHandle(DATA_FILE_NAME, { create: true });
       const granted = await verifyPermission(dataFileHandle, true, askPermission);
       if (!granted) {
-        throw new Error('Schreibzugriff auf die Daten-Datei wurde nicht gewaehrt');
+        throw new Error('Write access to the data file was not granted');
       }
       return dataFileHandle;
     }
@@ -2063,7 +2063,7 @@
 
     function confirmDiscardUnsaved(actionText) {
       if (!isDirty) return true;
-      return confirm(`${actionText}\n\nEs gibt ungespeicherte Aenderungen im Browser. Wenn du fortfaehrst, werden diese Aenderungen verworfen.`);
+      return confirm(`${actionText}\n\nThere are unsaved changes in the browser. If you continue, those changes will be discarded.`);
     }
 
     async function saveDirtyStateAfterPermission(statusTitleText) {
@@ -2075,9 +2075,9 @@
         lastWriteFailed = true;
         setStatus(
           'err',
-          'Speichern fehlgeschlagen',
-          'Die Datei konnte auch nach erneuter Freigabe nicht geschrieben werden. Ungespeicherte Aenderungen bleiben im Browser erhalten.',
-          error?.message || 'Unbekannter Fehler'
+          'Save Failed',
+          'The file could not be written even after access was granted again. Unsaved changes remain in the browser.',
+          error?.message || 'Unknown error'
         );
         render();
         throw error;
@@ -2087,7 +2087,7 @@
         'ok',
         statusTitleText,
         fileStatusMessage('Ungespeicherte Aenderungen wurden nach ', ' geschrieben.'),
-        `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
+        `Folder: ${directoryHandle?.name || '(unknown)'}`
       );
       render();
       return true;
@@ -2097,8 +2097,8 @@
       markDirty();
       setStatus(
         'warn',
-        'Datei wird aktualisiert',
-        fileStatusMessage('Alte oder reparierte Daten werden als Version 5 nach ', ' geschrieben.'),
+        'Updating File',
+        fileStatusMessage('Old or repaired data is being written as version 5 to ', '.'),
         statusMeta
       );
       await queueWrite();
@@ -2136,9 +2136,9 @@
         if (!loadedExistingState) {
           setStatus(
             'warn',
-            'Ordner verbunden',
-            fileStatusMessage('Der Ordner ist verbunden. ', ' wird jetzt angelegt.'),
-            `Ordner: ${directoryHandle.name}`
+            'Folder Connected',
+            fileStatusMessage('The folder is connected. ', ' will now be created.'),
+            `Folder: ${directoryHandle.name}`
           );
           renderStatus();
           await initializeEmptyDataFile();
@@ -2147,7 +2147,7 @@
           isDirty = false;
           lastWriteFailed = false;
           if (stateNeedsWriteAfterRead) {
-            await writeMigratedStateToDisk(`Ordner: ${directoryHandle.name}`);
+            await writeMigratedStateToDisk(`Folder: ${directoryHandle.name}`);
           }
           pendingThemeBeforeConnection = null;
         }
@@ -2155,8 +2155,8 @@
         setStatus(
           'ok',
           statusTitleText,
-          fileStatusMessage('Die Datei ', ' wird im ausgewaehlten Ordner verwendet.'),
-          `Ordner: ${directoryHandle.name}`
+          fileStatusMessage('The file ', ' is being used in the selected folder.'),
+          `Folder: ${directoryHandle.name}`
         );
         render();
       } catch (error) {
@@ -2202,7 +2202,7 @@
     }
 
     async function writeStateToDisk() {
-      if (!dataFileHandle) throw new Error('Keine Daten-Datei verbunden');
+      if (!dataFileHandle) throw new Error('No data file connected');
       let writable = null;
       try {
         writable = await dataFileHandle.createWritable();
@@ -2223,9 +2223,9 @@
       lastWriteFailed = false;
       setStatus(
         'ok',
-        'Datei verbunden',
-        fileStatusMessage('Die App speichert automatisch in ', '.'),
-        `Ordner: ${directoryHandle?.name || '(unbekannt)'} - Letztes Speichern: ${new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
+        'File Connected',
+        fileStatusMessage('The app saves automatically to ', '.'),
+        `Folder: ${directoryHandle?.name || '(unknown)'} - Last saved: ${new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
       );
     }
 
@@ -2239,9 +2239,9 @@
         lastWriteFailed = true;
         setStatus(
           'err',
-          'Speichern fehlgeschlagen',
-          'Die Datei konnte nicht geschrieben werden. Bearbeitung ist pausiert; ungespeicherte Aenderungen bleiben im Browser erhalten.',
-          error?.message || 'Unbekannter Fehler'
+          'Save Failed',
+          'The file could not be written. Editing is paused; unsaved changes remain in the browser.',
+          error?.message || 'Unknown error'
         );
         render();
         throw error;
@@ -2258,9 +2258,9 @@
       if (!isEditingEnabled()) return;
       setStatus(
         'warn',
-        'Speichere...',
-        fileStatusMessage('Schreibe Aenderungen nach ', '.'),
-        `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
+        'Saving...',
+        fileStatusMessage('Writing changes to ', '.'),
+        `Folder: ${directoryHandle?.name || '(unknown)'}`
       );
       renderStatus();
       await queueWrite();
@@ -2287,12 +2287,12 @@
       });
       const granted = await verifyPermission(picked, true, true);
       if (!granted) {
-        throw new Error('Schreibzugriff wurde nicht gewaehrt');
+        throw new Error('Write access was not granted');
       }
       directoryHandle = picked;
       dataFileHandle = null;
       try {
-        await activateConnectedDirectory('Datei verbunden');
+        await activateConnectedDirectory('File Connected');
         await saveRememberedDirectoryHandle(directoryHandle);
       } catch (error) {
         directoryHandle = previousDirectoryHandle;
@@ -2324,14 +2324,14 @@
           const granted = await verifyPermission(directoryHandle, true, true);
           if (granted) {
             attemptedDirtySave = isDirty;
-            await saveDirtyStateAfterPermission('Zugriff wiederhergestellt');
+            await saveDirtyStateAfterPermission('Access Restored');
             if (!isDirty) {
-              await activateConnectedDirectory('Datei verbunden');
+              await activateConnectedDirectory('File Connected');
             }
             return;
           }
         }
-        if (!confirmDiscardUnsaved('Neuen Ordner verbinden?')) return;
+        if (!confirmDiscardUnsaved('Connect a new folder?')) return;
         await pickNewDirectory();
       } catch (error) {
         if (error?.name === 'AbortError') return;
@@ -2344,15 +2344,15 @@
         }
         setStatus(
           'err',
-          'Ordner konnte nicht verbunden werden',
-          'Bitte verbinde den Ordner erneut und erlaube Lese-/Schreibzugriff.',
-          error?.message || 'Unbekannter Fehler'
+          'Could Not Connect Folder',
+          'Please reconnect the folder and allow read/write access.',
+          error?.message || 'Unknown error'
         );
       }
     }
 
     async function chooseDifferentDirectoryFromPicker() {
-      if (!confirmDiscardUnsaved('Anderen Ordner waehlen?')) return;
+      if (!confirmDiscardUnsaved('Choose a different folder?')) return;
       try {
         await pickNewDirectory();
       } catch (error) {
@@ -2363,9 +2363,9 @@
         }
         setStatus(
           'err',
-          'Ordner konnte nicht verbunden werden',
-          'Bitte waehle den Ordner erneut und erlaube Lese-/Schreibzugriff.',
-          error?.message || 'Unbekannter Fehler'
+          'Could Not Connect Folder',
+          'Please choose the folder again and allow read/write access.',
+          error?.message || 'Unknown error'
         );
       }
     }
@@ -2378,23 +2378,23 @@
       if (!granted) {
         setStatus(
           'warn',
-          'Ordner gemerkt, Zugriff fehlt',
-          `Der Ordner "${directoryHandle.name}" ist bekannt, aber der Browser braucht erneut eine Freigabe.`,
-          'Klicke einfach auf "Ordner verbinden". Dann wird zuerst der gemerkte Ordner erneut autorisiert und nur falls noetig der Picker geoeffnet.'
+          'Folder Remembered, Access Missing',
+          `The folder "${directoryHandle.name}" is known, but the browser needs permission again.`,
+          'Click "Connect Folder". The app will first try to reauthorize the remembered folder and only open the picker if needed.'
         );
         render();
         return;
       }
 
       try {
-        await activateConnectedDirectory('Datei automatisch verbunden');
+        await activateConnectedDirectory('File Connected Automatically');
       } catch (error) {
         resetConnectionState();
         setStatus(
           'err',
-          'Datei konnte nicht geladen werden',
-          'Bitte verbinde den Ordner erneut.',
-          error?.message || 'Unbekannter Fehler'
+          'Could Not Load File',
+          'Please reconnect the folder.',
+          error?.message || 'Unknown error'
         );
         render();
       }
@@ -2402,19 +2402,19 @@
 
     async function regrantAccess() {
       if (!directoryHandle) {
-        alert('Es ist noch kein Ordner bekannt. Bitte zuerst "Ordner verbinden" klicken.');
+        alert('No folder is known yet. Click "Connect Folder" first.');
         return;
       }
       let attemptedDirtySave = false;
       try {
         const granted = await verifyPermission(directoryHandle, true, true);
         if (!granted) {
-          throw new Error('Zugriff wurde nicht gewaehrt');
+          throw new Error('Access was not granted');
         }
         attemptedDirtySave = isDirty;
-        const savedDirtyState = await saveDirtyStateAfterPermission('Zugriff wiederhergestellt');
+        const savedDirtyState = await saveDirtyStateAfterPermission('Access Restored');
         if (!savedDirtyState) {
-          await activateConnectedDirectory('Zugriff wiederhergestellt');
+          await activateConnectedDirectory('Access Restored');
         }
       } catch (error) {
         if (attemptedDirtySave && isDirty) {
@@ -2425,9 +2425,9 @@
         }
         setStatus(
           'err',
-          'Zugriff nicht erneuert',
-          'Bitte den Ordner erneut verbinden.',
-          error?.message || 'Unbekannter Fehler'
+          'Access Not Restored',
+          'Please reconnect the folder.',
+          error?.message || 'Unknown error'
         );
         render();
       }
@@ -2435,7 +2435,7 @@
 
     async function reloadFromDisk() {
       if (!isEditingEnabled()) return;
-      const ok = !isDirty || confirm('Aktuellen Stand aus der Datei neu laden?\n\nEs gibt ungespeicherte Aenderungen im Browser. Diese werden verworfen.');
+      const ok = !isDirty || confirm('Reload the current state from the file?\n\nThere are unsaved changes in the browser. They will be discarded.');
       if (!ok) return;
       try {
         const loadedExistingState = await readStateFromDisk();
@@ -2444,28 +2444,28 @@
         if (!loadedExistingState) {
           setStatus(
             'warn',
-            'Datei initialisiert',
-            fileStatusMessage('Die Datei ', ' war leer und wird jetzt angelegt.'),
-            `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
+            'File Initialized',
+            fileStatusMessage('The file ', ' was empty and will now be created.'),
+            `Folder: ${directoryHandle?.name || '(unknown)'}`
           );
           renderStatus();
           await initializeEmptyDataFile();
         } else if (stateNeedsWriteAfterRead) {
-          await writeMigratedStateToDisk(`Ordner: ${directoryHandle?.name || '(unbekannt)'}`);
+          await writeMigratedStateToDisk(`Folder: ${directoryHandle?.name || '(unknown)'}`);
         }
         pendingThemeBeforeConnection = null;
         setStatus(
           'ok',
-          'Datei neu geladen',
-          fileStatusMessage('Die Datei ', ' wurde erneut eingelesen.'),
-          `Ordner: ${directoryHandle?.name || '(unbekannt)'}`
+          'File Reloaded',
+          fileStatusMessage('The file ', ' was read again.'),
+          `Folder: ${directoryHandle?.name || '(unknown)'}`
         );
       } catch (error) {
         setStatus(
           'err',
-          'Neu laden fehlgeschlagen',
-          'Die Daten-Datei konnte nicht gelesen werden.',
-          error?.message || 'Unbekannter Fehler'
+          'Reload Failed',
+          'The data file could not be read.',
+          error?.message || 'Unknown error'
         );
       }
     }
@@ -2491,7 +2491,7 @@
       if (!isEditingEnabled()) return;
       const project = getSelectedProject();
       if (!project) return;
-      const nextName = prompt('Neuer Projektname:', project.name);
+      const nextName = prompt('New project name:', project.name);
       if (nextName === null) return;
       const cleanName = nextName.trim();
       if (!cleanName) return;
@@ -2503,7 +2503,7 @@
       if (!isEditingEnabled()) return;
       const project = getSelectedProject();
       if (!project) return;
-      const ok = confirm(`Projekt "${project.name}" wirklich loeschen? Alle enthaltenen ToDos werden entfernt.`);
+      const ok = confirm(`Delete project "${project.name}"? All included ToDos will be removed.`);
       if (!ok) return;
       state.projects = state.projects.filter(p => p.id !== project.id);
       ensureSelection();
@@ -2514,7 +2514,7 @@
       if (!isEditingEnabled()) return;
       const project = getSelectedProject();
       if (!project) {
-        alert('Bitte zuerst ein Projekt anlegen oder auswaehlen.');
+        alert('Please create or select a project first.');
         return;
       }
       const title = els.taskTitle.value.trim();
@@ -2555,7 +2555,7 @@
 
     async function importBackup(file) {
       if (!file || !isEditingEnabled()) return;
-      const ok = confirm('Backup importieren?\n\nDer aktuelle Stand wird durch die Importdatei ersetzt und danach in die verbundene JSON-Datei geschrieben.');
+      const ok = confirm('Import backup?\n\nThe current state will be replaced by the import file and then written to the connected JSON file.');
       if (!ok) {
         els.importFile.value = '';
         return;
@@ -2575,7 +2575,7 @@
         state = nextState;
         markDirty();
         await persistAndRender();
-        alert('Import erfolgreich. Die verbundene Daten-Datei wurde direkt aktualisiert.');
+        alert('Import successful. The connected data file was updated immediately.');
       } catch (error) {
         state = previousState;
         isDirty = previousDirty;
@@ -2589,11 +2589,11 @@
         render();
         setStatus(
           'err',
-          'Import fehlgeschlagen',
-          'Der vorherige Stand wurde wiederhergestellt. Bitte eine gueltige JSON-Backup-Datei waehlen.',
-          error?.message || 'Unbekannter Fehler'
+          'Import Failed',
+          'The previous state was restored. Please choose a valid JSON backup file.',
+          error?.message || 'Unknown error'
         );
-        alert('Die Datei konnte nicht importiert werden. Bitte eine gueltige JSON-Backup-Datei waehlen.');
+        alert('The file could not be imported. Please choose a valid JSON backup file.');
       } finally {
         els.importFile.value = '';
       }
@@ -2601,7 +2601,7 @@
 
     async function resetData() {
       if (!isEditingEnabled()) return;
-      const ok = confirm('Wirklich alle Projekte und ToDos loeschen? Die verbundene JSON-Datei wird dabei geleert.');
+      const ok = confirm('Delete all projects and ToDos? The connected JSON file will be cleared.');
       if (!ok) return;
       const theme = state?.settings?.theme === 'light' ? 'light' : 'dark';
       state = createEmptyState();
@@ -2612,12 +2612,12 @@
     function showCompatibilityInfo() {
       if (supportsFileSystemAccess()) return;
       els.compatibilityBanner.classList.remove('hidden');
-      els.compatibilityBanner.textContent = 'Dieser Browser unterstuetzt den benoetigten Dateizugriff nicht. Bitte oeffne die HTML-Datei in einem aktuellen Chromium-basierten Browser wie Chrome oder Edge.';
+      els.compatibilityBanner.textContent = 'This browser does not support the required file access. Please open the HTML file in a current Chromium-based browser such as Chrome or Edge.';
       setStatus(
         'err',
-        'Browser nicht unterstuetzt',
-        'Fuer die dateibasierte Speicherung wird die File System Access API benoetigt.',
-        'Bitte Chrome oder Edge verwenden.'
+        'Browser Not Supported',
+        'The File System Access API is required for file-based storage.',
+        'Please use Chrome or Edge.'
       );
       render();
     }
