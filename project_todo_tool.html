@@ -801,7 +801,7 @@
       <div class="title-block">
         <div>
           <h1>Project ToDo Tool</h1>
-          <p class="muted" style="margin-top:8px;">Data is stored in a JSON file.</p>
+          <p class="muted" id="appStorageHint" style="margin-top:8px;">Data is stored in a JSON file.</p>
         </div>
         <div class="theme-switcher">
           <button type="button" id="themeToggleBtn" class="btn-secondary theme-toggle-btn" aria-label="Toggle theme">Theme: Dark</button>
@@ -810,20 +810,20 @@
 
       <div class="card">
         <div class="row space" style="margin-bottom:12px;">
-          <h2>Storage Location</h2>
+          <h2 id="storageCardHeading">Storage Location</h2>
         </div>
         <div class="status-box" style="margin-bottom:12px;" aria-live="polite" aria-atomic="true">
           <div class="status-title"><span id="statusDot" class="dot"></span><span id="storageStatusTitle">No folder connected yet</span></div>
           <div class="muted" id="storageStatusText">Click "Connect folder" and choose the same folder as this HTML file. `project-todos.json` will be created or used there automatically.</div>
           <div class="footer-note" id="storageMeta">No file connection active yet.</div>
         </div>
-        <div class="row">
+        <div class="row" id="storageActionRow">
           <button class="btn-primary" id="connectFolderBtn">Connect Folder</button>
           <button class="btn-secondary" id="chooseFolderBtn">Choose Different Folder</button>
           <button class="btn-secondary" id="regrantBtn">Restore Access</button>
           <button class="btn-secondary" id="reloadFileBtn">Reload File</button>
         </div>
-        <p class="footer-note" style="margin-top:12px;">Every change is written to the file automatically once the folder is connected.</p>
+        <p class="footer-note" id="storageFootnote" style="margin-top:12px;">Every change is written to the file automatically once the folder is connected.</p>
       </div>
 
       <div class="card">
@@ -852,7 +852,7 @@
           <input id="importFile" type="file" accept="application/json" class="hidden" />
           <button class="btn-danger" id="resetBtn">Delete Everything</button>
         </div>
-        <p class="footer-note" style="margin-top:12px;">Note: "Delete Everything" also clears the connected JSON file. Use export first if you want a backup.</p>
+        <p class="footer-note" id="extrasFootnote" style="margin-top:12px;">Note: "Delete Everything" also clears the connected JSON file. Use export first if you want a backup.</p>
       </div>
     </aside>
 
@@ -941,6 +941,10 @@
     const HANDLE_DB_NAME = 'project-todo-tool-handles';
     const HANDLE_STORE_NAME = 'keyval';
     const HANDLE_KEY = 'directory-handle';
+    const BROWSER_STATE_DB_NAME = 'project-todo-tool-browser-state';
+    const BROWSER_STATE_STORE_NAME = 'keyval';
+    const BROWSER_PAYLOAD_KEY = 'browser-payload';
+    const BROWSER_META_KEY = 'browser-meta';
     const THEME_STORAGE_KEY = 'project-todo-tool-theme';
 
     let directoryHandle = null;
@@ -951,6 +955,8 @@
     let stateNeedsWriteAfterRead = false;
     let lastWriteFailed = false;
     let pendingThemeBeforeConnection = null;
+    let browserLastSavedAt = '';
+    let browserLastExportAt = '';
     let state = createEmptyState();
     let currentStatusKind = 'warn';
     let currentStatusTitle = 'No folder connected yet';
@@ -963,6 +969,10 @@
       storageStatusTitle: document.getElementById('storageStatusTitle'),
       storageStatusText: document.getElementById('storageStatusText'),
       storageMeta: document.getElementById('storageMeta'),
+      appStorageHint: document.getElementById('appStorageHint'),
+      storageCardHeading: document.getElementById('storageCardHeading'),
+      storageActionRow: document.getElementById('storageActionRow'),
+      storageFootnote: document.getElementById('storageFootnote'),
       connectFolderBtn: document.getElementById('connectFolderBtn'),
       chooseFolderBtn: document.getElementById('chooseFolderBtn'),
       regrantBtn: document.getElementById('regrantBtn'),
@@ -989,6 +999,7 @@
       exportBtn: document.getElementById('exportBtn'),
       importBtn: document.getElementById('importBtn'),
       importFile: document.getElementById('importFile'),
+      extrasFootnote: document.getElementById('extrasFootnote'),
       resetBtn: document.getElementById('resetBtn'),
       taskFormCard: document.getElementById('taskFormCard'),
       themeToggleBtn: document.getElementById('themeToggleBtn'),
@@ -1001,6 +1012,14 @@
 
     function supportsFileSystemAccess() {
       return typeof window.showDirectoryPicker === 'function';
+    }
+
+    function supportsBrowserStorage() {
+      return typeof indexedDB !== 'undefined';
+    }
+
+    function usesBrowserStorageMode() {
+      return !supportsFileSystemAccess();
     }
 
     function getRememberedTheme() {
@@ -1033,6 +1052,34 @@
       return [prefix, { strong: DATA_FILE_NAME }, suffix];
     }
 
+    function normalizeStoredTimestamp(value) {
+      if (typeof value !== 'string') return '';
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+    }
+
+    function formatDateTime(value) {
+      const normalized = normalizeStoredTimestamp(value);
+      if (!normalized) return '';
+      return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(normalized));
+    }
+
+    function browserBackupIsOutOfDate() {
+      if (!browserLastSavedAt) return false;
+      if (!browserLastExportAt) return true;
+      return new Date(browserLastExportAt).getTime() < new Date(browserLastSavedAt).getTime();
+    }
+
+    function browserStorageMetaText() {
+      const parts = [];
+      parts.push(browserLastSavedAt ? `Last saved: ${formatDateTime(browserLastSavedAt)}` : 'No autosave yet.');
+      parts.push(browserLastExportAt ? `Last backup: ${formatDateTime(browserLastExportAt)}` : 'No backup downloaded yet.');
+      if (browserBackupIsOutOfDate()) {
+        parts.push('Backup out of date.');
+      }
+      return parts.join(' - ');
+    }
+
     function setStatus(kind, title, textParts, meta = '') {
       currentStatusKind = kind;
       currentStatusTitle = title;
@@ -1055,6 +1102,65 @@
         els.storageStatusText.appendChild(document.createTextNode(String(part ?? '')));
       });
       els.storageMeta.textContent = currentStatusMeta;
+    }
+
+    function setInitialStorageStatus() {
+      if (usesBrowserStorageMode()) {
+        currentStatusKind = 'warn';
+        currentStatusTitle = 'Browser Storage Mode';
+        currentStatusParts = ['Changes can be autosaved in this browser. Use "Download Backup" whenever you want a JSON file copy.'];
+        currentStatusMeta = 'Browser storage has not been opened yet.';
+        return;
+      }
+      currentStatusKind = 'warn';
+      currentStatusTitle = 'No folder connected yet';
+      currentStatusParts = ['Click "Connect Folder" and choose the same folder as this HTML file.'];
+      currentStatusMeta = 'No file connection active yet.';
+    }
+
+    function setBrowserStorageReadyStatus(title = 'Browser Storage Active') {
+      setStatus(
+        'ok',
+        title,
+        'Changes are autosaved in this browser. Use "Download Backup" to save a JSON file copy.',
+        browserStorageMetaText()
+      );
+    }
+
+    function setSavingStatus() {
+      if (usesBrowserStorageMode()) {
+        setStatus(
+          'warn',
+          'Saving...',
+          'Updating saved data in this browser.',
+          browserStorageMetaText()
+        );
+        renderStatus();
+        return;
+      }
+      setStatus(
+        'warn',
+        'Saving...',
+        fileStatusMessage('Writing changes to ', '.'),
+        `Folder: ${directoryHandle?.name || '(unknown)'}`
+      );
+      renderStatus();
+    }
+
+    function syncStorageModeUi() {
+      const browserMode = usesBrowserStorageMode();
+      els.appStorageHint.textContent = browserMode
+        ? 'Changes are autosaved in this browser. Download JSON backups when needed.'
+        : 'Data is stored in a JSON file.';
+      els.storageCardHeading.textContent = browserMode ? 'Storage Mode' : 'Storage Location';
+      els.storageActionRow.classList.toggle('hidden', browserMode);
+      els.storageFootnote.textContent = browserMode
+        ? 'Changes are autosaved in this browser. Download a JSON backup whenever you want a file copy.'
+        : 'Every change is written to the file automatically once the folder is connected.';
+      els.exportBtn.textContent = browserMode ? 'Download Backup' : 'Export Backup';
+      els.extrasFootnote.textContent = browserMode
+        ? 'Note: "Delete Everything" clears the browser-saved data for this app. Download a backup first if you need one.'
+        : 'Note: "Delete Everything" also clears the connected JSON file. Use export first if you want a backup.';
     }
 
     function syncTheme() {
@@ -1273,7 +1379,7 @@
     }
 
     function isEditingEnabled() {
-      return appReady && !!dataFileHandle && !lastWriteFailed;
+      return appReady && !lastWriteFailed && (usesBrowserStorageMode() || !!dataFileHandle);
     }
 
     function renderProjectList() {
@@ -1284,7 +1390,11 @@
       if (!state.projects.length) {
         const empty = document.createElement('div');
         empty.className = 'empty';
-        empty.textContent = appReady ? 'No projects yet.' : 'No file connected yet.';
+        empty.textContent = appReady
+          ? 'No projects yet.'
+          : (usesBrowserStorageMode()
+            ? (supportsBrowserStorage() ? 'Browser storage is loading.' : 'Browser not supported.')
+            : 'No file connected yet.');
         els.projectList.appendChild(empty);
         return;
       }
@@ -1436,20 +1546,14 @@
     function scheduleAutosave() {
       if (!isEditingEnabled()) return;
       markDirty();
-      setStatus(
-        'warn',
-        'Saving...',
-        fileStatusMessage('Writing changes to ', '.'),
-        `Folder: ${directoryHandle?.name || '(unknown)'}`
-      );
-      renderStatus();
+      setSavingStatus();
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
         try {
           await queueWrite();
           renderStatus();
         } catch {
-          // Fehlerstatus wird bereits in queueWrite gesetzt.
+          // Error status is already set in queueWrite.
         }
       }, 320);
     }
@@ -1592,6 +1696,7 @@
       const project = getSelectedProject();
       const editable = isEditingEnabled();
       const projectExists = editable && Boolean(project);
+      const browserMode = usesBrowserStorageMode();
 
       els.taskFormCard.style.opacity = projectExists ? '1' : '0.55';
       els.taskTitle.disabled = !projectExists;
@@ -1605,18 +1710,27 @@
       els.renameProjectBtn.classList.toggle('hidden', !projectExists);
       els.deleteProjectBtn.classList.toggle('hidden', !projectExists);
       els.resetBtn.disabled = !editable;
-      els.reloadFileBtn.disabled = !editable;
+      els.reloadFileBtn.disabled = browserMode || !editable;
       els.exportBtn.disabled = !editable;
       els.importBtn.disabled = !editable;
-      els.regrantBtn.disabled = !directoryHandle;
-      els.chooseFolderBtn.disabled = !supportsFileSystemAccess();
+      els.regrantBtn.disabled = browserMode || !directoryHandle;
+      els.chooseFolderBtn.disabled = browserMode || !supportsFileSystemAccess();
 
       if (!editable) {
-        const hasBlockedUnsavedChanges = appReady && !!dataFileHandle && lastWriteFailed;
-        els.activeProjectTitle.textContent = hasBlockedUnsavedChanges ? 'Save Failed' : 'No File Loaded';
+        const hasBlockedUnsavedChanges = appReady && (browserMode || !!dataFileHandle) && lastWriteFailed;
+        const browserStorageUnavailable = browserMode && !supportsBrowserStorage();
+        els.activeProjectTitle.textContent = hasBlockedUnsavedChanges
+          ? 'Save Failed'
+          : (browserStorageUnavailable ? 'Browser Not Supported' : (browserMode ? 'Browser Storage Loading' : 'No File Loaded'));
         els.activeProjectSubtitle.textContent = hasBlockedUnsavedChanges
-          ? 'Editing is paused so no further unsaved changes are created. Restore access or reconnect the folder.'
-          : 'Connect a folder first so the tool can work with file-based storage.';
+          ? (browserMode
+            ? 'Editing is paused so no further unsaved changes are created. Reload the page after exporting a backup if needed.'
+            : 'Editing is paused so no further unsaved changes are created. Restore access or reconnect the folder.')
+          : (browserStorageUnavailable
+            ? 'This browser cannot open the app with browser storage or file mode.'
+            : (browserMode
+            ? 'Browser storage is starting up for this app.'
+            : 'Connect a folder first so the tool can work with file-based storage.'));
         els.statTotal.textContent = '0';
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
@@ -1624,8 +1738,12 @@
         els.taskList.replaceChildren();
         els.emptyState.classList.remove('hidden');
         els.emptyState.textContent = hasBlockedUnsavedChanges
-          ? 'Unsaved changes remain in the browser. Restore access to write them to the file.'
-          : 'Connect a folder to the data file first.';
+          ? (browserMode
+            ? 'Unsaved changes remain in this tab. Browser storage must work again before editing can continue.'
+            : 'Unsaved changes remain in the browser. Restore access to write them to the file.')
+          : (browserStorageUnavailable
+            ? 'Use current Chrome, Opera, or Safari.'
+            : (browserMode ? 'Browser storage is not ready yet.' : 'Connect a folder to the data file first.'));
         return;
       }
 
@@ -1958,6 +2076,7 @@
 
     function render() {
       ensureSelection();
+      syncStorageModeUi();
       syncTheme();
       renderStatus();
       renderProjectList();
@@ -1977,6 +2096,52 @@
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
+    }
+
+    async function openBrowserStateDb() {
+      return await new Promise((resolve, reject) => {
+        const request = indexedDB.open(BROWSER_STATE_DB_NAME, 1);
+        request.onupgradeneeded = () => {
+          request.result.createObjectStore(BROWSER_STATE_STORE_NAME);
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function readBrowserStoredValue(key) {
+      let db = null;
+      try {
+        db = await openBrowserStateDb();
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(BROWSER_STATE_STORE_NAME, 'readonly');
+          const request = tx.objectStore(BROWSER_STATE_STORE_NAME).get(key);
+          request.onsuccess = () => resolve(request.result ?? null);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        db?.close();
+      }
+    }
+
+    async function saveBrowserStoredValue(key, value) {
+      let db = null;
+      try {
+        db = await openBrowserStateDb();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(BROWSER_STATE_STORE_NAME, 'readwrite');
+          tx.objectStore(BROWSER_STATE_STORE_NAME).put(value, key);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally {
+        db?.close();
+      }
+    }
+
+    async function loadBrowserStorageMeta() {
+      const storedMeta = await readBrowserStoredValue(BROWSER_META_KEY);
+      browserLastExportAt = normalizeStoredTimestamp(storedMeta?.lastExportAt);
     }
 
     async function saveRememberedDirectoryHandle(handle) {
@@ -2086,21 +2251,30 @@
       setStatus(
         'ok',
         statusTitleText,
-        fileStatusMessage('Ungespeicherte Aenderungen wurden nach ', ' geschrieben.'),
+        fileStatusMessage('Unsaved changes were written to ', '.'),
         `Folder: ${directoryHandle?.name || '(unknown)'}`
       );
       render();
       return true;
     }
 
-    async function writeMigratedStateToDisk(statusMeta) {
+    async function writeMigratedState(statusMeta) {
       markDirty();
-      setStatus(
-        'warn',
-        'Updating File',
-        fileStatusMessage('Old or repaired data is being written as version 5 to ', '.'),
-        statusMeta
-      );
+      if (usesBrowserStorageMode()) {
+        setStatus(
+          'warn',
+          'Updating Browser Data',
+          'Older or repaired data is being rewritten in browser storage as version 5.',
+          statusMeta || browserStorageMetaText()
+        );
+      } else {
+        setStatus(
+          'warn',
+          'Updating File',
+          fileStatusMessage('Old or repaired data is being written as version 5 to ', '.'),
+          statusMeta
+        );
+      }
       await queueWrite();
       stateNeedsWriteAfterRead = false;
       pendingThemeBeforeConnection = null;
@@ -2147,7 +2321,7 @@
           isDirty = false;
           lastWriteFailed = false;
           if (stateNeedsWriteAfterRead) {
-            await writeMigratedStateToDisk(`Folder: ${directoryHandle.name}`);
+            await writeMigratedState(`Folder: ${directoryHandle.name}`);
           }
           pendingThemeBeforeConnection = null;
         }
@@ -2164,6 +2338,31 @@
         render();
         throw error;
       }
+    }
+
+    async function readStateFromBrowserStorage() {
+      await loadBrowserStorageMeta();
+      const storedPayload = await readBrowserStoredValue(BROWSER_PAYLOAD_KEY);
+      if (!storedPayload) {
+        state = createEmptyState();
+        stateNeedsWriteAfterRead = false;
+        browserLastSavedAt = '';
+        ensureSelection();
+        return false;
+      }
+      const normalizedState = normalizeIncomingState(storedPayload);
+      stateNeedsWriteAfterRead = stateDiffersAfterNormalization(storedPayload, normalizedState);
+      state = normalizedState;
+      browserLastSavedAt = normalizeStoredTimestamp(storedPayload?.savedAt);
+      if (pendingThemeBeforeConnection) {
+        state.settings = state.settings || { theme: 'dark' };
+        if (state.settings.theme !== pendingThemeBeforeConnection) {
+          state.settings.theme = pendingThemeBeforeConnection;
+          stateNeedsWriteAfterRead = true;
+        }
+      }
+      ensureSelection();
+      return true;
     }
 
     async function readStateFromDisk() {
@@ -2229,20 +2428,48 @@
       );
     }
 
+    async function writeStateToBrowserStorage() {
+      const payload = createPayload();
+      await saveBrowserStoredValue(BROWSER_PAYLOAD_KEY, payload);
+      browserLastSavedAt = payload.savedAt;
+      isDirty = false;
+      lastWriteFailed = false;
+      stateNeedsWriteAfterRead = false;
+      pendingThemeBeforeConnection = null;
+      setBrowserStorageReadyStatus();
+    }
+
+    async function writeCurrentState() {
+      if (usesBrowserStorageMode()) {
+        await writeStateToBrowserStorage();
+        return;
+      }
+      await writeStateToDisk();
+    }
+
     async function queueWrite() {
       saveChain = saveChain
         .catch(() => undefined)
-        .then(() => writeStateToDisk());
+        .then(() => writeCurrentState());
       try {
         await saveChain;
       } catch (error) {
         lastWriteFailed = true;
-        setStatus(
-          'err',
-          'Save Failed',
-          'The file could not be written. Editing is paused; unsaved changes remain in the browser.',
-          error?.message || 'Unknown error'
-        );
+        if (usesBrowserStorageMode()) {
+          setStatus(
+            'err',
+            'Save Failed',
+            'Browser storage could not be updated. Editing is paused; unsaved changes remain in this tab.',
+            error?.message || 'Unknown error'
+          );
+        } else {
+          setStatus(
+            'err',
+            'Save Failed',
+            'The file could not be written. Editing is paused; unsaved changes remain in the browser.',
+            error?.message || 'Unknown error'
+          );
+        }
         render();
         throw error;
       }
@@ -2256,13 +2483,7 @@
       render();
       restoreTaskViewportAnchor(restoreTaskId, restoreTaskTop, restoreFocusSelector);
       if (!isEditingEnabled()) return;
-      setStatus(
-        'warn',
-        'Saving...',
-        fileStatusMessage('Writing changes to ', '.'),
-        `Folder: ${directoryHandle?.name || '(unknown)'}`
-      );
-      renderStatus();
+      setSavingStatus();
       await queueWrite();
       render();
       restoreTaskViewportAnchor(restoreTaskId, restoreTaskTop, restoreFocusSelector);
@@ -2434,7 +2655,7 @@
     }
 
     async function reloadFromDisk() {
-      if (!isEditingEnabled()) return;
+      if (usesBrowserStorageMode() || !isEditingEnabled()) return;
       const ok = !isDirty || confirm('Reload the current state from the file?\n\nThere are unsaved changes in the browser. They will be discarded.');
       if (!ok) return;
       try {
@@ -2451,7 +2672,7 @@
           renderStatus();
           await initializeEmptyDataFile();
         } else if (stateNeedsWriteAfterRead) {
-          await writeMigratedStateToDisk(`Folder: ${directoryHandle?.name || '(unknown)'}`);
+          await writeMigratedState(`Folder: ${directoryHandle?.name || '(unknown)'}`);
         }
         pendingThemeBeforeConnection = null;
         setStatus(
@@ -2546,16 +2767,31 @@
       const a = document.createElement('a');
       const date = new Date().toISOString().slice(0, 10);
       a.href = url;
-      a.download = `projekt-todos-backup-${date}.json`;
+      a.download = `project-todos-backup-${date}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      if (usesBrowserStorageMode()) {
+        browserLastExportAt = new Date().toISOString();
+        saveBrowserStoredValue(BROWSER_META_KEY, { lastExportAt: browserLastExportAt })
+          .then(() => {
+            setBrowserStorageReadyStatus('Backup Downloaded');
+            renderStatus();
+          })
+          .catch(() => {
+            // Backup download still succeeded. Export metadata is best effort only.
+          });
+      }
     }
 
     async function importBackup(file) {
       if (!file || !isEditingEnabled()) return;
-      const ok = confirm('Import backup?\n\nThe current state will be replaced by the import file and then written to the connected JSON file.');
+      const ok = confirm(
+        usesBrowserStorageMode()
+          ? 'Import backup?\n\nThe current browser-saved state will be replaced by the import file and then saved in this browser.'
+          : 'Import backup?\n\nThe current state will be replaced by the import file and then written to the connected JSON file.'
+      );
       if (!ok) {
         els.importFile.value = '';
         return;
@@ -2575,7 +2811,11 @@
         state = nextState;
         markDirty();
         await persistAndRender();
-        alert('Import successful. The connected data file was updated immediately.');
+        alert(
+          usesBrowserStorageMode()
+            ? 'Import successful. Browser-saved data was updated immediately.'
+            : 'Import successful. The connected data file was updated immediately.'
+        );
       } catch (error) {
         state = previousState;
         isDirty = previousDirty;
@@ -2601,7 +2841,11 @@
 
     async function resetData() {
       if (!isEditingEnabled()) return;
-      const ok = confirm('Delete all projects and ToDos? The connected JSON file will be cleared.');
+      const ok = confirm(
+        usesBrowserStorageMode()
+          ? 'Delete all projects and ToDos? The browser-saved data for this app will be cleared.'
+          : 'Delete all projects and ToDos? The connected JSON file will be cleared.'
+      );
       if (!ok) return;
       const theme = state?.settings?.theme === 'light' ? 'light' : 'dark';
       state = createEmptyState();
@@ -2610,16 +2854,16 @@
     }
 
     function showCompatibilityInfo() {
-      if (supportsFileSystemAccess()) return;
+      els.compatibilityBanner.classList.add('hidden');
+      if (supportsFileSystemAccess() || supportsBrowserStorage()) return;
       els.compatibilityBanner.classList.remove('hidden');
-      els.compatibilityBanner.textContent = 'This browser does not support the required file access. Please open the HTML file in a current Chromium-based browser such as Chrome or Edge.';
+      els.compatibilityBanner.textContent = 'This browser cannot provide required folder access or reliable local browser storage for this app. Please use current Chrome, Opera, or Safari.';
       setStatus(
         'err',
         'Browser Not Supported',
-        'The File System Access API is required for file-based storage.',
-        'Please use Chrome or Edge.'
+        'This browser cannot open the app with file mode or browser-storage mode.',
+        'Please use current Chrome, Opera, or Safari.'
       );
-      render();
     }
 
     els.connectFolderBtn.addEventListener('click', connectDirectoryFromPicker);
@@ -2697,11 +2941,46 @@
       event.returnValue = '';
     });
 
+    async function initBrowserStorageMode() {
+      if (!supportsBrowserStorage()) return;
+      try {
+        setStatus(
+          'warn',
+          'Browser Storage Mode',
+          'Loading saved data from this browser.',
+          browserStorageMetaText()
+        );
+        render();
+        const loadedExistingState = await readStateFromBrowserStorage();
+        appReady = true;
+        isDirty = false;
+        lastWriteFailed = false;
+        if (stateNeedsWriteAfterRead) {
+          await writeMigratedState(browserStorageMetaText());
+        } else {
+          pendingThemeBeforeConnection = null;
+          setBrowserStorageReadyStatus(loadedExistingState ? 'Browser Storage Active' : 'Browser Storage Ready');
+        }
+      } catch (error) {
+        appReady = false;
+        isDirty = false;
+        lastWriteFailed = false;
+        setStatus(
+          'err',
+          'Browser Storage Unavailable',
+          'Saved data could not be opened in this browser.',
+          error?.message || 'Unknown error'
+        );
+      }
+      render();
+    }
+
     async function init() {
       updateDraftCreatedAt();
       autoResizeTextarea(els.taskTitle);
-      render();
+      setInitialStorageStatus();
       showCompatibilityInfo();
+      render();
       if (document.fonts?.ready) {
         document.fonts.ready.then(() => {
           autoResizeTextarea(els.taskTitle);
@@ -2712,7 +2991,10 @@
         autoResizeTextarea(els.taskTitle);
         resizeRenderedNoteFields();
       }, { once: true });
-      if (!supportsFileSystemAccess()) return;
+      if (usesBrowserStorageMode()) {
+        await initBrowserStorageMode();
+        return;
+      }
       await tryRestoreRememberedDirectory();
       render();
     }
