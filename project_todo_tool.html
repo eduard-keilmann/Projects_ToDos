@@ -814,7 +814,7 @@
         </div>
         <div class="status-box" style="margin-bottom:12px;" aria-live="polite" aria-atomic="true">
           <div class="status-title"><span id="statusDot" class="dot"></span><span id="storageStatusTitle">No folder connected yet</span></div>
-          <div class="muted" id="storageStatusText">Click "Connect folder" and choose the same folder as this HTML file. `projekt-todos.json` will be created or used there automatically.</div>
+          <div class="muted" id="storageStatusText">Click "Connect folder" and choose the same folder as this HTML file. `project-todos.json` will be created or used there automatically.</div>
           <div class="footer-note" id="storageMeta">No file connection active yet.</div>
         </div>
         <div class="row">
@@ -937,11 +937,11 @@
   </div>
 
   <script>
-    const DATA_FILE_NAME = 'projekt-todos.json';
-    const HANDLE_DB_NAME = 'projekt-todo-tool-handles';
+    const DATA_FILE_NAME = 'project-todos.json';
+    const HANDLE_DB_NAME = 'project-todo-tool-handles';
     const HANDLE_STORE_NAME = 'keyval';
     const HANDLE_KEY = 'directory-handle';
-    const THEME_STORAGE_KEY = 'projekt-todo-tool-theme';
+    const THEME_STORAGE_KEY = 'project-todo-tool-theme';
 
     let directoryHandle = null;
     let dataFileHandle = null;
@@ -2282,7 +2282,7 @@
       const previousStatusParts = [...currentStatusParts];
       const previousStatusMeta = currentStatusMeta;
       const picked = await window.showDirectoryPicker({
-        id: 'projekt-todo-tool-folder',
+        id: 'project-todo-tool-folder',
         mode: 'readwrite'
       });
       const granted = await verifyPermission(picked, true, true);
