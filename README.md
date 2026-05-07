@@ -141,9 +141,9 @@ Normalization repairs or clears:
 
 - type into the quick-entry field
 - optionally set priority and due date
-- press `Enter`
+- click `Add ToDo`, or press `Ctrl+Enter` / `Cmd+Enter`
 
-Use `Shift+Enter` if you want a line break in the quick-entry field.
+Press `Enter` or `Shift+Enter` if you want a line break in the quick-entry field.
 
 New ToDos are inserted into the list and stay inline-editable.
 

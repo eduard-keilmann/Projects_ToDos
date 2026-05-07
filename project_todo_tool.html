@@ -888,7 +888,7 @@
       <section class="card" id="taskFormCard">
         <div class="row space" style="margin-bottom:8px;">
           <h2>Quick Entry</h2>
-          <span class="muted">Enter = new ToDo, Shift+Enter = line break</span>
+          <span class="muted">Ctrl+Enter / Cmd+Enter = new ToDo</span>
         </div>
         <div class="quick-entry-shell">
           <div class="editor-task">
@@ -904,11 +904,14 @@
               </select>
             </div>
             <div class="editor-body">
-              <textarea id="taskTitle" class="inline-title-input" placeholder="Write a new ToDo and create it with Enter" autocomplete="off" rows="1" aria-label="New ToDo"></textarea>
+              <textarea id="taskTitle" class="inline-title-input" placeholder="Write a new ToDo. Use Ctrl+Enter or Cmd+Enter to create it" autocomplete="off" rows="1" aria-label="New ToDo"></textarea>
               <div class="editor-subrow">
                 <div class="editor-side">
                   <label for="taskDueDate" class="muted editor-label">Due Date (optional)</label>
                   <input id="taskDueDate" class="editor-date-input" type="date" />
+                </div>
+                <div class="editor-actions">
+                  <button type="button" id="addTaskBtn" class="btn-primary mini">Add ToDo</button>
                 </div>
               </div>
               <div class="editor-meta-line">
@@ -988,6 +991,7 @@
       taskTitle: document.getElementById('taskTitle'),
       taskDueDate: document.getElementById('taskDueDate'),
       taskPriority: document.getElementById('taskPriority'),
+      addTaskBtn: document.getElementById('addTaskBtn'),
       taskList: document.getElementById('taskList'),
       emptyState: document.getElementById('emptyState'),
       statTotal: document.getElementById('statTotal'),
@@ -1771,6 +1775,7 @@
       els.taskTitle.disabled = !projectExists || reviewOnlyMode;
       els.taskDueDate.disabled = !projectExists || reviewOnlyMode;
       els.taskPriority.disabled = !projectExists || reviewOnlyMode;
+      els.addTaskBtn.disabled = !projectExists || reviewOnlyMode;
       updateDraftCreatedAt();
       els.newProjectName.disabled = !editable;
       els.addProjectBtn.disabled = !editable;
@@ -2971,9 +2976,10 @@
     els.newProjectName.addEventListener('keydown', event => {
       if (event.key === 'Enter') addProject(els.newProjectName.value);
     });
+    els.addTaskBtn.addEventListener('click', addTask);
     els.taskTitle.addEventListener('input', () => autoResizeTextarea(els.taskTitle));
     els.taskTitle.addEventListener('keydown', event => {
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
         addTask();
       }
