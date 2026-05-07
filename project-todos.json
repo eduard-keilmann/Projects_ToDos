@@ -1,0 +1,12 @@
+{
+  "app": "Project ToDo Tool",
+  "version": 5,
+  "savedAt": "2026-05-07T10:43:11.913Z",
+  "data": {
+    "projects": [],
+    "selectedProjectId": null,
+    "settings": {
+      "theme": "dark"
+    }
+  }
+}
