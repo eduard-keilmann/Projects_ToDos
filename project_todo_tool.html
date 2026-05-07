@@ -1382,10 +1382,19 @@
       return appReady && !lastWriteFailed && (usesBrowserStorageMode() || !!dataFileHandle);
     }
 
+    function canReviewUnsavedBrowserState() {
+      return usesBrowserStorageMode() && appReady && lastWriteFailed;
+    }
+
+    function canExportCurrentState() {
+      return isEditingEnabled() || canReviewUnsavedBrowserState();
+    }
+
     function renderProjectList() {
       els.projectList.replaceChildren();
       els.projectCount.textContent = `${state.projects.length}`;
       const editable = isEditingEnabled();
+      const canSelectProject = editable || canReviewUnsavedBrowserState();
 
       if (!state.projects.length) {
         const empty = document.createElement('div');
@@ -1497,7 +1506,7 @@
         const selectBtn = document.createElement('button');
         selectBtn.type = 'button';
         selectBtn.className = 'project-select';
-        selectBtn.disabled = !editable;
+        selectBtn.disabled = !canSelectProject;
         const projectCounts = counts(project);
         const projectNameLine = document.createElement('div');
         const projectName = document.createElement('strong');
@@ -1508,9 +1517,13 @@
         projectMeta.textContent = `${projectCounts.total} ToDos - ${projectCounts.open} open - ${projectCounts.done} done`;
         selectBtn.append(projectNameLine, projectMeta);
         selectBtn.addEventListener('click', async () => {
-          if (!editable) return;
+          if (!canSelectProject) return;
           state.selectedProjectId = project.id;
-          await persistAndRender();
+          if (editable) {
+            await persistAndRender();
+            return;
+          }
+          render();
         });
 
         entry.append(dragWrap, selectBtn);
@@ -1695,28 +1708,31 @@
     function renderTasks() {
       const project = getSelectedProject();
       const editable = isEditingEnabled();
-      const projectExists = editable && Boolean(project);
+      const reviewOnlyMode = canReviewUnsavedBrowserState();
+      const projectExists = (editable || reviewOnlyMode) && Boolean(project);
       const browserMode = usesBrowserStorageMode();
 
       els.taskFormCard.style.opacity = projectExists ? '1' : '0.55';
-      els.taskTitle.disabled = !projectExists;
-      els.taskDueDate.disabled = !projectExists;
-      els.taskPriority.disabled = !projectExists;
+      els.taskTitle.disabled = !projectExists || reviewOnlyMode;
+      els.taskDueDate.disabled = !projectExists || reviewOnlyMode;
+      els.taskPriority.disabled = !projectExists || reviewOnlyMode;
       updateDraftCreatedAt();
       els.newProjectName.disabled = !editable;
       els.addProjectBtn.disabled = !editable;
-      els.filterSelect.disabled = !editable;
-      els.searchInput.disabled = !editable;
+      els.filterSelect.disabled = !editable && !reviewOnlyMode;
+      els.searchInput.disabled = !editable && !reviewOnlyMode;
       els.renameProjectBtn.classList.toggle('hidden', !projectExists);
       els.deleteProjectBtn.classList.toggle('hidden', !projectExists);
+      els.renameProjectBtn.disabled = !editable;
+      els.deleteProjectBtn.disabled = !editable;
       els.resetBtn.disabled = !editable;
       els.reloadFileBtn.disabled = browserMode || !editable;
-      els.exportBtn.disabled = !editable;
+      els.exportBtn.disabled = !canExportCurrentState();
       els.importBtn.disabled = !editable;
       els.regrantBtn.disabled = browserMode || !directoryHandle;
       els.chooseFolderBtn.disabled = browserMode || !supportsFileSystemAccess();
 
-      if (!editable) {
+      if (!editable && !reviewOnlyMode) {
         const hasBlockedUnsavedChanges = appReady && (browserMode || !!dataFileHandle) && lastWriteFailed;
         const browserStorageUnavailable = browserMode && !supportsBrowserStorage();
         els.activeProjectTitle.textContent = hasBlockedUnsavedChanges
@@ -1748,8 +1764,10 @@
       }
 
       if (!project) {
-        els.activeProjectTitle.textContent = 'No Project Selected';
-        els.activeProjectSubtitle.textContent = 'Create a project on the left to get started.';
+        els.activeProjectTitle.textContent = reviewOnlyMode ? 'Save Failed' : 'No Project Selected';
+        els.activeProjectSubtitle.textContent = reviewOnlyMode
+          ? 'Browser storage could not be updated. Download a backup before reloading the page.'
+          : 'Create a project on the left to get started.';
         els.statTotal.textContent = '0';
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
@@ -1762,7 +1780,9 @@
 
       const projectCounts = counts(project);
       els.activeProjectTitle.textContent = project.name;
-      els.activeProjectSubtitle.textContent = `Created on ${new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(normalizeDateTime(project.createdAt)))}`;
+      els.activeProjectSubtitle.textContent = reviewOnlyMode
+        ? 'Browser storage could not be updated. Review the current data and download a backup before reloading the page.'
+        : `Created on ${new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(normalizeDateTime(project.createdAt)))}`;
       els.statTotal.textContent = String(projectCounts.total);
       els.statOpen.textContent = String(projectCounts.open);
       els.statDone.textContent = String(projectCounts.done);
@@ -1770,9 +1790,11 @@
       const filteredTasks = getFilteredTasks(project);
       els.visibleTaskCount.textContent = `${filteredTasks.length} visible`;
       els.taskList.replaceChildren();
-      const taskReorderEnabled = els.filterSelect.value === 'all' && !els.searchInput.value.trim();
+      const taskReorderEnabled = editable && els.filterSelect.value === 'all' && !els.searchInput.value.trim();
       if (!taskReorderEnabled && project.tasks.length) {
-        els.visibleTaskCount.textContent = `${filteredTasks.length} visible - Sorting only works without search/filter`;
+        els.visibleTaskCount.textContent = reviewOnlyMode
+          ? `${filteredTasks.length} visible - Read-only while browser storage remains unavailable`
+          : `${filteredTasks.length} visible - Sorting only works without search/filter`;
       }
 
       if (!project.tasks.length) {
@@ -1897,6 +1919,7 @@
         checkbox.type = 'checkbox';
         checkbox.className = 'checkbox';
         checkbox.checked = task.done;
+        checkbox.disabled = !editable;
         checkbox.setAttribute('aria-label', 'ToDo done');
         checkbox.addEventListener('change', async () => {
           const currentProject = state.projects.find(p => p.id === project.id);
@@ -1922,6 +1945,7 @@
           prioritySelect.appendChild(option);
         });
         prioritySelect.value = ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium';
+        prioritySelect.disabled = !editable;
         prioritySelect.addEventListener('change', () => {
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
@@ -1942,6 +1966,7 @@
         titleInput.value = task.title;
         titleInput.rows = 1;
         titleInput.placeholder = 'ToDo title';
+        titleInput.disabled = !editable;
         titleInput.dataset.previousValue = task.title;
         titleInput.addEventListener('focus', () => {
           titleInput.dataset.previousValue = titleInput.value;
@@ -1977,6 +2002,7 @@
         notesInput.value = task.notes || '';
         notesInput.rows = 1;
         notesInput.placeholder = 'Notes';
+        notesInput.disabled = !editable;
         notesInput.setAttribute('aria-label', 'Notes');
         notesInput.addEventListener('focus', () => autoResizeTextarea(notesInput));
         notesInput.addEventListener('input', () => {
@@ -2013,6 +2039,7 @@
         dueInput.type = 'date';
         dueInput.className = 'editor-date-input';
         dueInput.value = task.dueDate || '';
+        dueInput.disabled = !editable;
         dueInput.addEventListener('change', () => {
           const currentProject = state.projects.find(p => p.id === project.id);
           const currentTask = currentProject?.tasks.find(t => t.id === task.id);
@@ -2031,6 +2058,7 @@
         deleteBtn.className = 'btn-danger mini editor-delete-btn';
         deleteBtn.textContent = 'Delete';
         deleteBtn.title = 'Delete ToDo';
+        deleteBtn.disabled = !editable;
         deleteBtn.addEventListener('click', async () => {
           const currentProject = state.projects.find(p => p.id === project.id);
           if (!currentProject) return;
@@ -2459,7 +2487,7 @@
           setStatus(
             'err',
             'Save Failed',
-            'Browser storage could not be updated. Editing is paused; unsaved changes remain in this tab.',
+            'Browser storage could not be updated. Editing is paused; unsaved changes remain in this tab. Download a backup before reloading the page.',
             error?.message || 'Unknown error'
           );
         } else {
@@ -2761,7 +2789,7 @@
     }
 
     function exportBackup() {
-      if (!isEditingEnabled()) return;
+      if (!canExportCurrentState()) return;
       const blob = new Blob([JSON.stringify(createPayload(), null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2776,7 +2804,16 @@
         browserLastExportAt = new Date().toISOString();
         saveBrowserStoredValue(BROWSER_META_KEY, { lastExportAt: browserLastExportAt })
           .then(() => {
-            setBrowserStorageReadyStatus('Backup Downloaded');
+            if (canReviewUnsavedBrowserState()) {
+              setStatus(
+                'warn',
+                'Backup Downloaded',
+                'Current in-memory data was downloaded as a backup. Browser storage is still unavailable, so editing remains paused.',
+                browserStorageMetaText()
+              );
+            } else {
+              setBrowserStorageReadyStatus('Backup Downloaded');
+            }
             renderStatus();
           })
           .catch(() => {
