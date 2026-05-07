@@ -1018,8 +1018,24 @@
       return typeof indexedDB !== 'undefined';
     }
 
+    function isSafariBrowser() {
+      const userAgent = navigator.userAgent || '';
+      const vendor = navigator.vendor || '';
+      const isAppleSafari = /Apple/i.test(vendor) && /Safari/i.test(userAgent);
+      const isOtherBrowser = /(Chrome|Chromium|CriOS|Edg|OPR|OPiOS|FxiOS|Firefox|SamsungBrowser)/i.test(userAgent);
+      return isAppleSafari && !isOtherBrowser;
+    }
+
+    function supportsSafariBrowserStorageMode() {
+      return !supportsFileSystemAccess() && supportsBrowserStorage() && isSafariBrowser();
+    }
+
+    function isSupportedBrowser() {
+      return supportsFileSystemAccess() || supportsSafariBrowserStorageMode();
+    }
+
     function usesBrowserStorageMode() {
-      return !supportsFileSystemAccess();
+      return supportsSafariBrowserStorageMode();
     }
 
     function getRememberedTheme() {
@@ -1399,10 +1415,12 @@
       if (!state.projects.length) {
         const empty = document.createElement('div');
         empty.className = 'empty';
-        empty.textContent = appReady
+        empty.textContent = !isSupportedBrowser()
+          ? 'Browser not supported.'
+          : appReady
           ? 'No projects yet.'
           : (usesBrowserStorageMode()
-            ? (supportsBrowserStorage() ? 'Browser storage is loading.' : 'Browser not supported.')
+            ? 'Browser storage is loading.'
             : 'No file connected yet.');
         els.projectList.appendChild(empty);
         return;
@@ -1733,20 +1751,23 @@
       els.chooseFolderBtn.disabled = browserMode || !supportsFileSystemAccess();
 
       if (!editable && !reviewOnlyMode) {
+        const unsupportedBrowser = !isSupportedBrowser();
         const hasBlockedUnsavedChanges = appReady && (browserMode || !!dataFileHandle) && lastWriteFailed;
         const browserStorageUnavailable = browserMode && !supportsBrowserStorage();
         els.activeProjectTitle.textContent = hasBlockedUnsavedChanges
           ? 'Save Failed'
-          : (browserStorageUnavailable ? 'Browser Not Supported' : (browserMode ? 'Browser Storage Loading' : 'No File Loaded'));
+          : (unsupportedBrowser ? 'Browser Not Supported' : (browserStorageUnavailable ? 'Browser Not Supported' : (browserMode ? 'Browser Storage Loading' : 'No File Loaded')));
         els.activeProjectSubtitle.textContent = hasBlockedUnsavedChanges
           ? (browserMode
             ? 'Editing is paused so no further unsaved changes are created. Reload the page after exporting a backup if needed.'
             : 'Editing is paused so no further unsaved changes are created. Restore access or reconnect the folder.')
-          : (browserStorageUnavailable
+          : (unsupportedBrowser
+            ? 'This browser is outside the supported storage modes for this app.'
+            : (browserStorageUnavailable
             ? 'This browser cannot open the app with browser storage or file mode.'
             : (browserMode
             ? 'Browser storage is starting up for this app.'
-            : 'Connect a folder first so the tool can work with file-based storage.'));
+            : 'Connect a folder first so the tool can work with file-based storage.')));
         els.statTotal.textContent = '0';
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
@@ -1757,9 +1778,11 @@
           ? (browserMode
             ? 'Unsaved changes remain in this tab. Browser storage must work again before editing can continue.'
             : 'Unsaved changes remain in the browser. Restore access to write them to the file.')
-          : (browserStorageUnavailable
+          : (unsupportedBrowser
             ? 'Use current Chrome, Opera, or Safari.'
-            : (browserMode ? 'Browser storage is not ready yet.' : 'Connect a folder to the data file first.'));
+            : (browserStorageUnavailable
+            ? 'Use current Chrome, Opera, or Safari.'
+            : (browserMode ? 'Browser storage is not ready yet.' : 'Connect a folder to the data file first.')));
         return;
       }
 
@@ -2892,13 +2915,13 @@
 
     function showCompatibilityInfo() {
       els.compatibilityBanner.classList.add('hidden');
-      if (supportsFileSystemAccess() || supportsBrowserStorage()) return;
+      if (isSupportedBrowser()) return;
       els.compatibilityBanner.classList.remove('hidden');
-      els.compatibilityBanner.textContent = 'This browser cannot provide required folder access or reliable local browser storage for this app. Please use current Chrome, Opera, or Safari.';
+      els.compatibilityBanner.textContent = 'This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari. This browser is outside those supported modes.';
       setStatus(
         'err',
         'Browser Not Supported',
-        'This browser cannot open the app with file mode or browser-storage mode.',
+        'This browser is outside the supported Chrome/Opera file mode and Safari browser-storage mode.',
         'Please use current Chrome, Opera, or Safari.'
       );
     }
@@ -2979,7 +3002,7 @@
     });
 
     async function initBrowserStorageMode() {
-      if (!supportsBrowserStorage()) return;
+      if (!supportsSafariBrowserStorageMode()) return;
       try {
         setStatus(
           'warn',
