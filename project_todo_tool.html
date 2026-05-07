@@ -1121,6 +1121,13 @@
     }
 
     function setInitialStorageStatus() {
+      if (!isSupportedBrowser()) {
+        currentStatusKind = 'err';
+        currentStatusTitle = 'Browser Not Supported';
+        currentStatusParts = ['This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari.'];
+        currentStatusMeta = 'Please use current Chrome, Opera, or Safari.';
+        return;
+      }
       if (usesBrowserStorageMode()) {
         currentStatusKind = 'warn';
         currentStatusTitle = 'Browser Storage Mode';
@@ -1164,6 +1171,15 @@
     }
 
     function syncStorageModeUi() {
+      if (!isSupportedBrowser()) {
+        els.appStorageHint.textContent = 'This browser is outside the supported storage modes for this app.';
+        els.storageCardHeading.textContent = 'Browser Support';
+        els.storageActionRow.classList.add('hidden');
+        els.storageFootnote.textContent = 'Use current Chrome or Opera for direct file mode, or Safari for browser-storage mode.';
+        els.exportBtn.textContent = 'Export Backup';
+        els.extrasFootnote.textContent = 'This app does not enable local data editing in unsupported browsers.';
+        return;
+      }
       const browserMode = usesBrowserStorageMode();
       els.appStorageHint.textContent = browserMode
         ? 'Changes are autosaved in this browser. Download JSON backups when needed.'
