@@ -1911,7 +1911,7 @@
         const taskIndex = project.tasks.findIndex(currentTask => currentTask.id === task.id);
         const moveTaskUpBtn = document.createElement('button');
         moveTaskUpBtn.type = 'button';
-        moveTaskUpBtn.className = 'drag-order-btn';
+        moveTaskUpBtn.className = 'drag-order-btn move-task-up-btn';
         moveTaskUpBtn.textContent = 'Up';
         moveTaskUpBtn.title = taskReorderEnabled
           ? 'Move ToDo up'
@@ -1919,15 +1919,21 @@
         moveTaskUpBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} up`);
         moveTaskUpBtn.disabled = !taskReorderEnabled || taskIndex <= 0;
         moveTaskUpBtn.addEventListener('click', async event => {
+          event.preventDefault();
           event.stopPropagation();
           const currentProject = state.projects.find(p => p.id === project.id);
+          const taskTopBeforeMove = item.getBoundingClientRect().top;
           if (moveTaskByStep(currentProject, task.id, -1)) {
-            await persistAndRender();
+            await persistAndRender({
+              restoreTaskId: task.id,
+              restoreTaskTop: taskTopBeforeMove,
+              restoreFocusSelector: '.move-task-up-btn'
+            });
           }
         });
         const moveTaskDownBtn = document.createElement('button');
         moveTaskDownBtn.type = 'button';
-        moveTaskDownBtn.className = 'drag-order-btn';
+        moveTaskDownBtn.className = 'drag-order-btn move-task-down-btn';
         moveTaskDownBtn.textContent = 'Down';
         moveTaskDownBtn.title = taskReorderEnabled
           ? 'Move ToDo down'
@@ -1935,10 +1941,16 @@
         moveTaskDownBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} down`);
         moveTaskDownBtn.disabled = !taskReorderEnabled || taskIndex < 0 || taskIndex >= project.tasks.length - 1;
         moveTaskDownBtn.addEventListener('click', async event => {
+          event.preventDefault();
           event.stopPropagation();
           const currentProject = state.projects.find(p => p.id === project.id);
+          const taskTopBeforeMove = item.getBoundingClientRect().top;
           if (moveTaskByStep(currentProject, task.id, 1)) {
-            await persistAndRender();
+            await persistAndRender({
+              restoreTaskId: task.id,
+              restoreTaskTop: taskTopBeforeMove,
+              restoreFocusSelector: '.move-task-down-btn'
+            });
           }
         });
         taskOrderActions.append(moveTaskUpBtn, moveTaskDownBtn);
