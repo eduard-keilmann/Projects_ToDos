@@ -1,2 +1,3 @@
 project-todos.json
 *.local.md
+.DS_Store
