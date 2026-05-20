@@ -13,9 +13,11 @@ Everything runs from `project_todo_tool.html`.
 
 ## Live Site
 
-GitHub Pages:
+Direct app link on GitHub Pages:
 
-- https://eduard-keilmann.github.io/Projects_ToDos/
+- https://eduard-keilmann.github.io/Projects_ToDos/project_todo_tool.html
+
+You can use the app directly in the browser through this permanent link, without downloading the repository or .html file first.
 
 ## What It Does
 
