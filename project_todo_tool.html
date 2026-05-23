@@ -2033,6 +2033,8 @@
           const fromIndex = findItemIndex(items, getItemId, movedItemId);
           const targetIndex = findItemIndex(items, getItemId, targetItemId);
           if (fromIndex < 0 || targetIndex < 0) return false;
+          if (!insertAfter && fromIndex === targetIndex - 1) return false;
+          if (insertAfter && fromIndex === targetIndex + 1) return false;
           const [movedItem] = items.splice(fromIndex, 1);
           let nextIndex = findItemIndex(items, getItemId, targetItemId);
           if (nextIndex < 0) {

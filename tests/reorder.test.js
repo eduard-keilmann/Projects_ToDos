@@ -63,6 +63,17 @@ test('shared reorder module handles same-target and invalid-target drops as no-o
   assert.deepEqual(items.map(item => item.id), ['a', 'b', 'c']);
 });
 
+test('shared reorder module reports adjacent target drops that keep order as no-ops', () => {
+  const reorderModule = loadReorderModule();
+  const items = createItems(['a', 'b', 'c']);
+
+  assert.equal(reorderModule.moveByTarget(items, item => item.id, 'a', 'b'), false);
+  assert.deepEqual(items.map(item => item.id), ['a', 'b', 'c']);
+
+  assert.equal(reorderModule.moveByTarget(items, item => item.id, 'b', 'a', true), false);
+  assert.deepEqual(items.map(item => item.id), ['a', 'b', 'c']);
+});
+
 test('shared reorder module moves items by step and to the end', () => {
   const reorderModule = loadReorderModule();
   const items = createItems(['a', 'b', 'c']);
