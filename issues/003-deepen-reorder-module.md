@@ -36,16 +36,25 @@ Architecture expectation:
 
 ## Acceptance criteria
 
-- [ ] Project drag/drop reorder preserves current behavior.
-- [ ] Project up/down buttons preserve current behavior.
-- [ ] ToDo drag/drop reorder preserves current behavior.
-- [ ] ToDo up/down buttons preserve current behavior.
-- [ ] Moving to list end via blank-area drop still works for projects and ToDos.
-- [ ] Reorder remains disabled for ToDos while search/filter is active.
-- [ ] No runtime files are added; app remains one HTML file.
+- [x] Project drag/drop reorder preserves current behavior.
+- [x] Project up/down buttons preserve current behavior.
+- [x] ToDo drag/drop reorder preserves current behavior.
+- [x] ToDo up/down buttons preserve current behavior.
+- [x] Moving to list end via blank-area drop still works for projects and ToDos.
+- [x] Reorder remains disabled for ToDos while search/filter is active.
+- [x] No runtime files are added; app remains one HTML file.
 - [ ] Focused manual verification covers first item, last item, same-target drop, invalid target, and blank-area drop.
 
 ## Blocked by
 
 - 002-deepen-task-query-module.md
 
+## Implementation status
+
+- Implemented in `project_todo_tool.html` with one in-file `createReorderModule()` seam.
+- Project and task reorder helpers now act as thin adapters over the shared module.
+- Drag-indicator clearing also routes through the same shared module to remove duplicated class-clearing logic.
+- Added focused regression coverage in `tests/reorder.test.js`.
+- Automated validation run:
+  - `node --test tests/reorder.test.js`
+  - `node --test tests/reorder.test.js tests/task-query.test.js tests/task-render.test.js`

@@ -2015,16 +2015,62 @@
       document.querySelectorAll('.inline-title-input, .inline-notes-input').forEach(autoResizeTextarea);
     }
 
+    function createReorderModule() {
+      function findItemIndex(items, getItemId, itemId) {
+        return items.findIndex(item => getItemId(item) === itemId);
+      }
+
+      return {
+        clearIndicators(baseSelector) {
+          document.querySelectorAll(
+            `${baseSelector}.dragging, ${baseSelector}.drag-over-top, ${baseSelector}.drag-over-bottom`
+          ).forEach(node => {
+            node.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
+          });
+        },
+        moveByTarget(items, getItemId, movedItemId, targetItemId, insertAfter = false) {
+          if (movedItemId === targetItemId) return false;
+          const fromIndex = findItemIndex(items, getItemId, movedItemId);
+          const targetIndex = findItemIndex(items, getItemId, targetItemId);
+          if (fromIndex < 0 || targetIndex < 0) return false;
+          const [movedItem] = items.splice(fromIndex, 1);
+          let nextIndex = findItemIndex(items, getItemId, targetItemId);
+          if (nextIndex < 0) {
+            items.push(movedItem);
+            return true;
+          }
+          if (insertAfter) {
+            nextIndex += 1;
+          }
+          items.splice(nextIndex, 0, movedItem);
+          return true;
+        },
+        moveToEnd(items, getItemId, movedItemId) {
+          const fromIndex = findItemIndex(items, getItemId, movedItemId);
+          if (fromIndex < 0 || fromIndex === items.length - 1) return false;
+          const [movedItem] = items.splice(fromIndex, 1);
+          items.push(movedItem);
+          return true;
+        },
+        moveByStep(items, getItemId, itemId, direction) {
+          const fromIndex = findItemIndex(items, getItemId, itemId);
+          const toIndex = fromIndex + direction;
+          if (fromIndex < 0 || toIndex < 0 || toIndex >= items.length) return false;
+          const [item] = items.splice(fromIndex, 1);
+          items.splice(toIndex, 0, item);
+          return true;
+        }
+      };
+    }
+
+    const reorderModule = createReorderModule();
+
     function clearDragIndicators() {
-      document.querySelectorAll('.editor-task.dragging, .editor-task.drag-over-top, .editor-task.drag-over-bottom').forEach(node => {
-        node.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
-      });
+      reorderModule.clearIndicators('.editor-task');
     }
 
     function clearProjectDragIndicators() {
-      document.querySelectorAll('.project-entry.dragging, .project-entry.drag-over-top, .project-entry.drag-over-bottom').forEach(node => {
-        node.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
-      });
+      reorderModule.clearIndicators('.project-entry');
     }
 
     function findRenderedTaskById(taskId) {
@@ -2056,75 +2102,42 @@
     }
 
     function reorderProjects(movedProjectId, targetProjectId, insertAfter = false) {
-      if (movedProjectId === targetProjectId) return false;
-      const fromIndex = state.projects.findIndex(project => project.id === movedProjectId);
-      const targetIndex = state.projects.findIndex(project => project.id === targetProjectId);
-      if (fromIndex < 0 || targetIndex < 0) return false;
-      const [movedProject] = state.projects.splice(fromIndex, 1);
-      let nextIndex = state.projects.findIndex(project => project.id === targetProjectId);
-      if (nextIndex < 0) {
-        state.projects.push(movedProject);
-        return true;
-      }
-      if (insertAfter) {
-        nextIndex += 1;
-      }
-      state.projects.splice(nextIndex, 0, movedProject);
-      return true;
+      return reorderModule.moveByTarget(
+        state.projects,
+        project => project.id,
+        movedProjectId,
+        targetProjectId,
+        insertAfter
+      );
     }
 
     function moveProjectToEnd(movedProjectId) {
-      const fromIndex = state.projects.findIndex(project => project.id === movedProjectId);
-      if (fromIndex < 0 || fromIndex === state.projects.length - 1) return false;
-      const [movedProject] = state.projects.splice(fromIndex, 1);
-      state.projects.push(movedProject);
-      return true;
+      return reorderModule.moveToEnd(state.projects, project => project.id, movedProjectId);
     }
 
     function moveProjectByStep(projectId, direction) {
-      const fromIndex = state.projects.findIndex(project => project.id === projectId);
-      const toIndex = fromIndex + direction;
-      if (fromIndex < 0 || toIndex < 0 || toIndex >= state.projects.length) return false;
-      const [project] = state.projects.splice(fromIndex, 1);
-      state.projects.splice(toIndex, 0, project);
-      return true;
+      return reorderModule.moveByStep(state.projects, project => project.id, projectId, direction);
     }
 
     function reorderProjectTasks(project, movedTaskId, targetTaskId, insertAfter = false) {
       if (!project || movedTaskId === targetTaskId) return false;
-      const fromIndex = project.tasks.findIndex(task => task.id === movedTaskId);
-      const targetIndex = project.tasks.findIndex(task => task.id === targetTaskId);
-      if (fromIndex < 0 || targetIndex < 0) return false;
-      const [movedTask] = project.tasks.splice(fromIndex, 1);
-      let nextIndex = project.tasks.findIndex(task => task.id === targetTaskId);
-      if (nextIndex < 0) {
-        project.tasks.push(movedTask);
-        return true;
-      }
-      if (insertAfter) {
-        nextIndex += 1;
-      }
-      project.tasks.splice(nextIndex, 0, movedTask);
-      return true;
+      return reorderModule.moveByTarget(
+        project.tasks,
+        task => task.id,
+        movedTaskId,
+        targetTaskId,
+        insertAfter
+      );
     }
 
     function moveTaskToEnd(project, movedTaskId) {
       if (!project) return false;
-      const fromIndex = project.tasks.findIndex(task => task.id === movedTaskId);
-      if (fromIndex < 0 || fromIndex === project.tasks.length - 1) return false;
-      const [movedTask] = project.tasks.splice(fromIndex, 1);
-      project.tasks.push(movedTask);
-      return true;
+      return reorderModule.moveToEnd(project.tasks, task => task.id, movedTaskId);
     }
 
     function moveTaskByStep(project, taskId, direction) {
       if (!project) return false;
-      const fromIndex = project.tasks.findIndex(task => task.id === taskId);
-      const toIndex = fromIndex + direction;
-      if (fromIndex < 0 || toIndex < 0 || toIndex >= project.tasks.length) return false;
-      const [task] = project.tasks.splice(fromIndex, 1);
-      project.tasks.splice(toIndex, 0, task);
-      return true;
+      return reorderModule.moveByStep(project.tasks, task => task.id, taskId, direction);
     }
 
     function buildTaskRow(options) {
