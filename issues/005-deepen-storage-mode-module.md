@@ -36,16 +36,22 @@ Architecture expectation:
 
 ## Acceptance criteria
 
-- [ ] Chrome/Opera file mode still supports connect folder, remembered folder, reload file, autosave to `project-todos.json`, export backup, import backup, and delete everything.
-- [ ] Safari browser-storage mode still supports autosave in IndexedDB, backup download, import backup, backup freshness metadata, and delete everything.
-- [ ] Unsupported browser messaging remains explicit and editing remains disabled.
-- [ ] File mode does not accidentally use browser-storage live data.
-- [ ] Browser-storage mode does not show folder-only controls as active.
-- [ ] No runtime files are added; app remains one HTML file.
+- [x] Chrome/Opera file mode still supports connect folder, remembered folder, reload file, autosave to `project-todos.json`, export backup, import backup, and delete everything.
+- [x] Safari browser-storage mode still supports autosave in IndexedDB, backup download, import backup, backup freshness metadata, and delete everything.
+- [x] Unsupported browser messaging remains explicit and editing remains disabled.
+- [x] File mode does not accidentally use browser-storage live data.
+- [x] Browser-storage mode does not show folder-only controls as active.
+- [x] No runtime files are added; app remains one HTML file.
 - [ ] Focused manual verification covers mode detection paths by browser where available or by controlled function-level checks where not.
+
+## Implementation notes
+
+- Added an in-file storage-mode seam in `project_todo_tool.html` with `buildFileStorageMode()`, `buildBrowserStorageMode()`, `buildUnsupportedStorageMode()`, `buildStorageMode()`, and `getStorageMode()`.
+- Centralized mode-specific UI labels and capability flags such as folder connection, reload support, remembered-folder support, browser backup metadata, and export button text.
+- Replaced repeated mode checks in initialization, edit gating, save/write status, reload, import/export, reset, and compatibility UI with the shared storage-mode object.
+- Added focused regression coverage in `tests/storage-mode.test.js`.
 
 ## Blocked by
 
 - 001-deepen-state-normalization-module.md
 - 004-deepen-status-message-module.md
-

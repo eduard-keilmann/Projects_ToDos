@@ -1048,12 +1048,91 @@
       return !supportsFileSystemAccess() && supportsBrowserStorage() && isSafariBrowser();
     }
 
+    function buildFileStorageMode() {
+      return {
+        id: 'file',
+        isSupported: true,
+        usesBrowserStorage: false,
+        supportsFolderConnection: true,
+        supportsRememberedDirectory: true,
+        supportsReload: true,
+        supportsLiveFile: true,
+        supportsBackupMetadata: false,
+        initialStatusType: 'initial-file-mode',
+        appStorageHint: 'Data is stored in a JSON file.',
+        storageCardHeading: 'Storage Location',
+        showStorageActionRow: true,
+        storageFootnote: 'Every change is written to the file automatically once the folder is connected.',
+        exportButtonLabel: 'Export Backup',
+        extrasFootnote: 'Note: "Delete Everything" also clears the connected JSON file. Use export first if you want a backup.'
+      };
+    }
+
+    function buildBrowserStorageMode() {
+      return {
+        id: 'browser',
+        isSupported: true,
+        usesBrowserStorage: true,
+        supportsFolderConnection: false,
+        supportsRememberedDirectory: false,
+        supportsReload: false,
+        supportsLiveFile: false,
+        supportsBackupMetadata: true,
+        initialStatusType: 'initial-browser-storage',
+        appStorageHint: 'Changes are autosaved in this browser. Download JSON backups when needed.',
+        storageCardHeading: 'Storage Mode',
+        showStorageActionRow: false,
+        storageFootnote: 'Changes are autosaved in this browser. Download a JSON backup whenever you want a file copy.',
+        exportButtonLabel: 'Download Backup',
+        extrasFootnote: 'Note: "Delete Everything" clears the browser-saved data for this app. Download a backup first if you need one.'
+      };
+    }
+
+    function buildUnsupportedStorageMode() {
+      return {
+        id: 'unsupported',
+        isSupported: false,
+        usesBrowserStorage: false,
+        supportsFolderConnection: false,
+        supportsRememberedDirectory: false,
+        supportsReload: false,
+        supportsLiveFile: false,
+        supportsBackupMetadata: false,
+        initialStatusType: 'initial-unsupported-browser',
+        appStorageHint: 'This browser is outside the supported storage modes for this app.',
+        storageCardHeading: 'Browser Support',
+        showStorageActionRow: false,
+        storageFootnote: 'Use current Chrome or Opera for direct file mode, or Safari for browser-storage mode.',
+        exportButtonLabel: 'Export Backup',
+        extrasFootnote: 'This app does not enable local data editing in unsupported browsers.'
+      };
+    }
+
+    function buildStorageMode(modeId) {
+      switch (modeId) {
+        case 'file':
+          return buildFileStorageMode();
+        case 'browser':
+          return buildBrowserStorageMode();
+        case 'unsupported':
+          return buildUnsupportedStorageMode();
+        default:
+          throw new Error(`Unknown storage mode: ${modeId}`);
+      }
+    }
+
+    function getStorageMode() {
+      if (supportsChromeOrOperaFileMode()) return buildStorageMode('file');
+      if (supportsSafariBrowserStorageMode()) return buildStorageMode('browser');
+      return buildStorageMode('unsupported');
+    }
+
     function isSupportedBrowser() {
-      return supportsChromeOrOperaFileMode() || supportsSafariBrowserStorageMode();
+      return getStorageMode().isSupported;
     }
 
     function usesBrowserStorageMode() {
-      return supportsSafariBrowserStorageMode();
+      return getStorageMode().usesBrowserStorage;
     }
 
     function getRememberedTheme() {
@@ -1280,23 +1359,8 @@
     }
 
     function setInitialStorageStatus() {
-      if (!isSupportedBrowser()) {
-        const status = buildStorageStatus('initial-unsupported-browser');
-        currentStatusKind = status.kind;
-        currentStatusTitle = status.title;
-        currentStatusParts = status.textParts;
-        currentStatusMeta = status.meta;
-        return;
-      }
-      if (usesBrowserStorageMode()) {
-        const status = buildStorageStatus('initial-browser-storage');
-        currentStatusKind = status.kind;
-        currentStatusTitle = status.title;
-        currentStatusParts = status.textParts;
-        currentStatusMeta = status.meta;
-        return;
-      }
-      const status = buildStorageStatus('initial-file-mode');
+      const storageMode = getStorageMode();
+      const status = buildStorageStatus(storageMode.initialStatusType);
       currentStatusKind = status.kind;
       currentStatusTitle = status.title;
       currentStatusParts = status.textParts;
@@ -1311,7 +1375,8 @@
     }
 
     function setSavingStatus() {
-      if (usesBrowserStorageMode()) {
+      const storageMode = getStorageMode();
+      if (storageMode.usesBrowserStorage) {
         setStatusObject(buildStorageStatus('saving', {
           browserMode: true,
           meta: browserStorageMetaText()
@@ -1327,28 +1392,13 @@
     }
 
     function syncStorageModeUi() {
-      if (!isSupportedBrowser()) {
-        els.appStorageHint.textContent = 'This browser is outside the supported storage modes for this app.';
-        els.storageCardHeading.textContent = 'Browser Support';
-        els.storageActionRow.classList.add('hidden');
-        els.storageFootnote.textContent = 'Use current Chrome or Opera for direct file mode, or Safari for browser-storage mode.';
-        els.exportBtn.textContent = 'Export Backup';
-        els.extrasFootnote.textContent = 'This app does not enable local data editing in unsupported browsers.';
-        return;
-      }
-      const browserMode = usesBrowserStorageMode();
-      els.appStorageHint.textContent = browserMode
-        ? 'Changes are autosaved in this browser. Download JSON backups when needed.'
-        : 'Data is stored in a JSON file.';
-      els.storageCardHeading.textContent = browserMode ? 'Storage Mode' : 'Storage Location';
-      els.storageActionRow.classList.toggle('hidden', browserMode);
-      els.storageFootnote.textContent = browserMode
-        ? 'Changes are autosaved in this browser. Download a JSON backup whenever you want a file copy.'
-        : 'Every change is written to the file automatically once the folder is connected.';
-      els.exportBtn.textContent = browserMode ? 'Download Backup' : 'Export Backup';
-      els.extrasFootnote.textContent = browserMode
-        ? 'Note: "Delete Everything" clears the browser-saved data for this app. Download a backup first if you need one.'
-        : 'Note: "Delete Everything" also clears the connected JSON file. Use export first if you want a backup.';
+      const storageMode = getStorageMode();
+      els.appStorageHint.textContent = storageMode.appStorageHint;
+      els.storageCardHeading.textContent = storageMode.storageCardHeading;
+      els.storageActionRow.classList.toggle('hidden', !storageMode.showStorageActionRow);
+      els.storageFootnote.textContent = storageMode.storageFootnote;
+      els.exportBtn.textContent = storageMode.exportButtonLabel;
+      els.extrasFootnote.textContent = storageMode.extrasFootnote;
     }
 
     function syncTheme() {
@@ -1592,11 +1642,11 @@
     }
 
     function isEditingEnabled() {
-      return appReady && !lastWriteFailed && (usesBrowserStorageMode() || !!dataFileHandle);
+      return appReady && !lastWriteFailed && (getStorageMode().usesBrowserStorage || !!dataFileHandle);
     }
 
     function canReviewUnsavedBrowserState() {
-      return usesBrowserStorageMode() && appReady && lastWriteFailed;
+      return getStorageMode().usesBrowserStorage && appReady && lastWriteFailed;
     }
 
     function canExportCurrentState() {
@@ -1608,15 +1658,16 @@
       els.projectCount.textContent = `${state.projects.length}`;
       const editable = isEditingEnabled();
       const canSelectProject = editable || canReviewUnsavedBrowserState();
+      const storageMode = getStorageMode();
 
       if (!state.projects.length) {
         const empty = document.createElement('div');
         empty.className = 'empty';
-        empty.textContent = !isSupportedBrowser()
+        empty.textContent = !storageMode.isSupported
           ? 'Browser not supported.'
           : appReady
           ? 'No projects yet.'
-          : (usesBrowserStorageMode()
+          : (storageMode.usesBrowserStorage
             ? 'Browser storage is loading.'
             : 'No file connected yet.');
         els.projectList.appendChild(empty);
@@ -1950,7 +2001,8 @@
       const editable = isEditingEnabled();
       const reviewOnlyMode = canReviewUnsavedBrowserState();
       const projectExists = (editable || reviewOnlyMode) && Boolean(project);
-      const browserMode = usesBrowserStorageMode();
+      const storageMode = getStorageMode();
+      const browserMode = storageMode.usesBrowserStorage;
 
       els.taskFormCard.style.opacity = projectExists ? '1' : '0.55';
       els.taskTitle.disabled = !projectExists || reviewOnlyMode;
@@ -1967,14 +2019,14 @@
       els.renameProjectBtn.disabled = !editable;
       els.deleteProjectBtn.disabled = !editable;
       els.resetBtn.disabled = !editable;
-      els.reloadFileBtn.disabled = browserMode || !editable;
+      els.reloadFileBtn.disabled = !storageMode.supportsReload || !editable;
       els.exportBtn.disabled = !canExportCurrentState();
       els.importBtn.disabled = !editable;
-      els.regrantBtn.disabled = browserMode || !directoryHandle;
-      els.chooseFolderBtn.disabled = browserMode || !supportsFileSystemAccess();
+      els.regrantBtn.disabled = !storageMode.supportsRememberedDirectory || !directoryHandle;
+      els.chooseFolderBtn.disabled = !storageMode.supportsFolderConnection || !supportsFileSystemAccess();
 
       if (!editable && !reviewOnlyMode) {
-        const unsupportedBrowser = !isSupportedBrowser();
+        const unsupportedBrowser = !storageMode.isSupported;
         const hasBlockedUnsavedChanges = appReady && (browserMode || !!dataFileHandle) && lastWriteFailed;
         els.activeProjectTitle.textContent = hasBlockedUnsavedChanges
           ? 'Save Failed'
@@ -2541,10 +2593,11 @@
     }
 
     async function writeMigratedState(statusMeta) {
+      const storageMode = getStorageMode();
       markDirty();
       setStatusObject(buildStorageStatus('write-migrated-state', {
-        browserMode: usesBrowserStorageMode(),
-        meta: usesBrowserStorageMode() ? (statusMeta || browserStorageMetaText()) : statusMeta
+        browserMode: storageMode.usesBrowserStorage,
+        meta: storageMode.usesBrowserStorage ? (statusMeta || browserStorageMetaText()) : statusMeta
       }));
       await queueWrite();
       stateNeedsWriteAfterRead = false;
@@ -2697,7 +2750,7 @@
     }
 
     async function writeCurrentState() {
-      if (usesBrowserStorageMode()) {
+      if (getStorageMode().usesBrowserStorage) {
         await writeStateToBrowserStorage();
         return;
       }
@@ -2713,7 +2766,7 @@
       } catch (error) {
         lastWriteFailed = true;
         setStatusObject(buildStorageStatus('save-failed', {
-          browserMode: usesBrowserStorageMode(),
+          browserMode: getStorageMode().usesBrowserStorage,
           meta: error?.message || 'Unknown error'
         }));
         render();
@@ -2898,7 +2951,7 @@
     }
 
     async function reloadFromDisk() {
-      if (usesBrowserStorageMode() || !isEditingEnabled()) return;
+      if (!getStorageMode().supportsReload || !isEditingEnabled()) return;
       const ok = !isDirty || confirm('Reload the current state from the file?\n\nThere are unsaved changes in the browser. They will be discarded.');
       if (!ok) return;
       try {
@@ -3012,7 +3065,7 @@
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      if (usesBrowserStorageMode()) {
+      if (getStorageMode().supportsBackupMetadata) {
         browserLastExportAt = new Date().toISOString();
         saveBrowserStoredValue(BROWSER_META_KEY, { lastExportAt: browserLastExportAt })
           .then(() => {
@@ -3038,7 +3091,7 @@
     async function importBackup(file) {
       if (!file || !isEditingEnabled()) return;
       const ok = confirm(
-        usesBrowserStorageMode()
+        getStorageMode().usesBrowserStorage
           ? 'Import backup?\n\nThe current browser-saved state will be replaced by the import file and then saved in this browser.'
           : 'Import backup?\n\nThe current state will be replaced by the import file and then written to the connected JSON file.'
       );
@@ -3062,7 +3115,7 @@
         markDirty();
         await persistAndRender();
         alert(
-          usesBrowserStorageMode()
+          getStorageMode().usesBrowserStorage
             ? 'Import successful. Browser-saved data was updated immediately.'
             : 'Import successful. The connected data file was updated immediately.'
         );
@@ -3089,7 +3142,7 @@
     async function resetData() {
       if (!isEditingEnabled()) return;
       const ok = confirm(
-        usesBrowserStorageMode()
+        getStorageMode().usesBrowserStorage
           ? 'Delete all projects and ToDos? The browser-saved data for this app will be cleared.'
           : 'Delete all projects and ToDos? The connected JSON file will be cleared.'
       );
@@ -3102,7 +3155,7 @@
 
     function showCompatibilityInfo() {
       els.compatibilityBanner.classList.add('hidden');
-      if (isSupportedBrowser()) return;
+      if (getStorageMode().isSupported) return;
       els.compatibilityBanner.classList.remove('hidden');
       els.compatibilityBanner.textContent = 'This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari. This browser is outside those supported modes.';
       setStatus(
@@ -3191,7 +3244,7 @@
     });
 
     async function initBrowserStorageMode() {
-      if (!supportsSafariBrowserStorageMode()) return;
+      if (!getStorageMode().usesBrowserStorage) return;
       try {
         setStatusObject(buildStorageStatus('browser-storage-loading', {
           meta: browserStorageMetaText()
@@ -3234,7 +3287,7 @@
         autoResizeTextarea(els.taskTitle);
         resizeRenderedNoteFields();
       }, { once: true });
-      if (usesBrowserStorageMode()) {
+      if (getStorageMode().usesBrowserStorage) {
         await initBrowserStorageMode();
         return;
       }
