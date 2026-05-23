@@ -37,13 +37,13 @@ Architecture expectation:
 
 ## Acceptance criteria
 
-- [ ] No-project, unsupported-browser, loading, save-failed, empty-project, no-filter-match, and normal task-list states still render correctly.
-- [ ] Inline title editing preserves current input, blur cleanup, empty-title fallback, autosave, and search re-render behavior.
-- [ ] Inline notes editing preserves current notes persistence and search re-render behavior.
-- [ ] Priority, done checkbox, due date, delete, drag/drop, and up/down buttons preserve current behavior.
-- [ ] Viewport/focus restoration after done toggle, task movement, and due-date change still works.
-- [ ] Task row DOM creation is easier to read and does not require knowing storage-mode internals.
-- [ ] No runtime files are added; app remains one HTML file.
+- [x] No-project, unsupported-browser, loading, save-failed, empty-project, no-filter-match, and normal task-list states still render correctly.
+- [x] Inline title editing preserves current input, blur cleanup, empty-title fallback, autosave, and search re-render behavior.
+- [x] Inline notes editing preserves current notes persistence and search re-render behavior.
+- [x] Priority, done checkbox, due date, delete, drag/drop, and up/down buttons preserve current behavior.
+- [x] Viewport/focus restoration after done toggle, task movement, and due-date change still works.
+- [x] Task row DOM creation is easier to read and does not require knowing storage-mode internals.
+- [x] No runtime files are added; app remains one HTML file.
 - [ ] Focused manual verification covers creating, editing, searching, filtering, moving, completing, dating, and deleting a ToDo.
 
 ## Blocked by
@@ -51,4 +51,3 @@ Architecture expectation:
 - 002-deepen-task-query-module.md
 - 003-deepen-reorder-module.md
 - 006-deepen-persistence-lifecycle-module.md
-

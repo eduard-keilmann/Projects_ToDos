@@ -2127,6 +2127,283 @@
       return true;
     }
 
+    function buildTaskRow(options) {
+      const {
+        document,
+        task,
+        editable,
+        taskReorderEnabled,
+        taskIndex,
+        taskCount,
+        autoResizeTextarea,
+        clearDragIndicators,
+        formatDate,
+        normalizeDateTime,
+        relativeInfo,
+        normalizeDateOnly,
+        getDraggedTaskId,
+        setDraggedTaskId,
+        intents = {}
+      } = options;
+
+      const item = document.createElement('div');
+      item.className = 'editor-task' + (task.done ? ' done' : '');
+      item.dataset.taskId = task.id;
+
+      const dragWrap = document.createElement('div');
+      dragWrap.className = 'editor-drag-wrap';
+
+      const dragHandle = document.createElement('div');
+      dragHandle.className = 'drag-handle';
+      dragHandle.textContent = '::';
+      dragHandle.draggable = taskReorderEnabled;
+      dragHandle.title = taskReorderEnabled
+        ? 'Drag to reorder'
+        : 'Sorting is only available without search and filters';
+      dragHandle.setAttribute('aria-label', `Reorder ToDo ${task.title || 'Untitled'} with drag and drop`);
+      dragHandle.addEventListener('dragstart', event => {
+        if (!taskReorderEnabled) {
+          event.preventDefault();
+          return;
+        }
+        setDraggedTaskId(task.id);
+        clearDragIndicators();
+        item.classList.add('dragging');
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', task.id);
+        }
+      });
+      dragHandle.addEventListener('dragend', () => {
+        setDraggedTaskId(null);
+        clearDragIndicators();
+      });
+      dragWrap.appendChild(dragHandle);
+
+      const taskOrderActions = document.createElement('div');
+      taskOrderActions.className = 'drag-actions';
+
+      const moveTaskUpBtn = document.createElement('button');
+      moveTaskUpBtn.type = 'button';
+      moveTaskUpBtn.className = 'drag-order-btn move-task-up-btn';
+      moveTaskUpBtn.textContent = 'Up';
+      moveTaskUpBtn.title = taskReorderEnabled
+        ? 'Move ToDo up'
+        : 'Sorting is only available without search and filters';
+      moveTaskUpBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} up`);
+      moveTaskUpBtn.disabled = !taskReorderEnabled || taskIndex <= 0;
+      moveTaskUpBtn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        intents.onMoveUp?.({ task, item, event });
+      });
+
+      const moveTaskDownBtn = document.createElement('button');
+      moveTaskDownBtn.type = 'button';
+      moveTaskDownBtn.className = 'drag-order-btn move-task-down-btn';
+      moveTaskDownBtn.textContent = 'Down';
+      moveTaskDownBtn.title = taskReorderEnabled
+        ? 'Move ToDo down'
+        : 'Sorting is only available without search and filters';
+      moveTaskDownBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} down`);
+      moveTaskDownBtn.disabled = !taskReorderEnabled || taskIndex < 0 || taskIndex >= taskCount - 1;
+      moveTaskDownBtn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        intents.onMoveDown?.({ task, item, event });
+      });
+
+      taskOrderActions.append(moveTaskUpBtn, moveTaskDownBtn);
+      dragWrap.appendChild(taskOrderActions);
+
+      item.addEventListener('dragover', event => {
+        if (!taskReorderEnabled) return;
+        const draggedTaskId = getDraggedTaskId();
+        if (!draggedTaskId || draggedTaskId === task.id) return;
+        event.preventDefault();
+        const rect = item.getBoundingClientRect();
+        const insertAfter = event.clientY > rect.top + rect.height / 2;
+        item.classList.toggle('drag-over-top', !insertAfter);
+        item.classList.toggle('drag-over-bottom', insertAfter);
+      });
+      item.addEventListener('dragleave', event => {
+        if (event.currentTarget !== event.target) return;
+        item.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      item.addEventListener('drop', event => {
+        if (!taskReorderEnabled) return;
+        const draggedTaskId = getDraggedTaskId();
+        if (!draggedTaskId || draggedTaskId === task.id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = item.getBoundingClientRect();
+        const insertAfter = event.clientY > rect.top + rect.height / 2;
+        intents.onDrop?.({ task, item, draggedTaskId, insertAfter, event });
+      });
+
+      const controlStack = document.createElement('div');
+      controlStack.className = 'editor-control-stack';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'checkbox';
+      checkbox.checked = task.done;
+      checkbox.disabled = !editable;
+      checkbox.setAttribute('aria-label', 'ToDo done');
+      checkbox.addEventListener('change', event => intents.onToggleDone?.({
+        task,
+        item,
+        checkbox,
+        checked: checkbox.checked,
+        event
+      }));
+      controlStack.appendChild(checkbox);
+
+      const prioritySelect = document.createElement('select');
+      prioritySelect.className = 'priority-select';
+      prioritySelect.setAttribute('aria-label', 'Priority');
+      ['low', 'medium', 'high'].forEach(priority => {
+        const option = document.createElement('option');
+        option.value = priority;
+        option.textContent = priority;
+        prioritySelect.appendChild(option);
+      });
+      prioritySelect.value = ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium';
+      prioritySelect.disabled = !editable;
+      prioritySelect.addEventListener('change', event => intents.onPriorityChange?.({
+        task,
+        item,
+        value: prioritySelect.value,
+        event
+      }));
+      controlStack.appendChild(prioritySelect);
+
+      const body = document.createElement('div');
+      body.className = 'editor-body';
+
+      const titleInput = document.createElement('textarea');
+      titleInput.className = 'inline-title-input';
+      titleInput.value = task.title;
+      titleInput.rows = 1;
+      titleInput.placeholder = 'ToDo title';
+      titleInput.disabled = !editable;
+      titleInput.dataset.previousValue = task.title;
+      titleInput.addEventListener('focus', () => {
+        titleInput.dataset.previousValue = titleInput.value;
+        autoResizeTextarea(titleInput);
+      });
+      titleInput.addEventListener('input', event => {
+        autoResizeTextarea(titleInput);
+        intents.onTitleInput?.({
+          task,
+          item,
+          input: titleInput,
+          value: titleInput.value,
+          event
+        });
+      });
+      titleInput.addEventListener('blur', event => {
+        intents.onTitleBlur?.({
+          task,
+          item,
+          input: titleInput,
+          value: titleInput.value,
+          previousValue: titleInput.dataset.previousValue || '',
+          event
+        });
+      });
+
+      const notesInput = document.createElement('textarea');
+      notesInput.className = 'inline-notes-input';
+      notesInput.value = task.notes || '';
+      notesInput.rows = 1;
+      notesInput.placeholder = 'Notes';
+      notesInput.disabled = !editable;
+      notesInput.setAttribute('aria-label', 'Notes');
+      notesInput.addEventListener('focus', () => autoResizeTextarea(notesInput));
+      notesInput.addEventListener('input', event => {
+        autoResizeTextarea(notesInput);
+        intents.onNotesInput?.({
+          task,
+          item,
+          input: notesInput,
+          value: notesInput.value,
+          event
+        });
+      });
+      notesInput.addEventListener('blur', event => {
+        intents.onNotesBlur?.({
+          task,
+          item,
+          input: notesInput,
+          value: notesInput.value,
+          event
+        });
+      });
+      const shouldShowNotesInput = typeof task.notes === 'string' && task.notes !== '';
+
+      const subrow = document.createElement('div');
+      subrow.className = 'editor-subrow';
+
+      const side = document.createElement('div');
+      side.className = 'editor-side';
+      const dueLabel = document.createElement('label');
+      dueLabel.className = 'muted editor-label';
+      dueLabel.textContent = 'Due Date';
+      const dueInput = document.createElement('input');
+      dueInput.type = 'date';
+      dueInput.className = 'editor-date-input';
+      dueInput.value = task.dueDate || '';
+      dueInput.disabled = !editable;
+      dueInput.addEventListener('change', event => intents.onDueDateChange?.({
+        task,
+        item,
+        input: dueInput,
+        value: normalizeDateOnly(dueInput.value),
+        event
+      }));
+      side.append(dueLabel, dueInput);
+
+      const actions = document.createElement('div');
+      actions.className = 'editor-actions';
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn-danger mini editor-delete-btn';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.title = 'Delete ToDo';
+      deleteBtn.disabled = !editable;
+      deleteBtn.addEventListener('click', event => intents.onDelete?.({ task, item, event }));
+      actions.appendChild(deleteBtn);
+      subrow.append(side, actions);
+
+      const meta = document.createElement('div');
+      meta.className = 'editor-meta-line';
+      const created = document.createElement('span');
+      created.className = 'editor-meta-tag';
+      created.textContent = `Created: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
+      const status = document.createElement('span');
+      status.className = 'editor-meta-tag';
+      status.textContent = task.done ? 'Done' : 'Open';
+      meta.append(created, status);
+      if (task.dueDate) {
+        const due = document.createElement('span');
+        due.className = 'editor-meta-tag';
+        const dueText = relativeInfo(task.dueDate);
+        due.textContent = dueText ? `Due: ${formatDate(task.dueDate)} - ${dueText}` : `Due: ${formatDate(task.dueDate)}`;
+        meta.appendChild(due);
+      }
+
+      autoResizeTextarea(titleInput);
+      if (shouldShowNotesInput) {
+        autoResizeTextarea(notesInput);
+        body.append(titleInput, notesInput, subrow, meta);
+      } else {
+        body.append(titleInput, subrow, meta);
+      }
+
+      item.append(dragWrap, controlStack, body);
+      return item;
+    }
+
     function renderTasks() {
       const project = getSelectedProject();
       const editable = isEditingEnabled();
@@ -2232,302 +2509,140 @@
       els.emptyState.classList.add('hidden');
 
       filteredTasks.forEach(task => {
-        const item = document.createElement('div');
-        item.className = 'editor-task' + (task.done ? ' done' : '');
-        item.dataset.taskId = task.id;
-
-        const dragWrap = document.createElement('div');
-        dragWrap.className = 'editor-drag-wrap';
-
-        const dragHandle = document.createElement('div');
-        dragHandle.className = 'drag-handle';
-        dragHandle.textContent = '::';
-        dragHandle.draggable = taskReorderEnabled;
-        dragHandle.title = taskReorderEnabled
-          ? 'Drag to reorder'
-          : 'Sorting is only available without search and filters';
-        dragHandle.setAttribute('aria-label', `Reorder ToDo ${task.title || 'Untitled'} with drag and drop`);
-        dragHandle.addEventListener('dragstart', event => {
-          if (!taskReorderEnabled) {
-            event.preventDefault();
-            return;
-          }
-          draggedTaskId = task.id;
-          clearDragIndicators();
-          item.classList.add('dragging');
-          if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', task.id);
-          }
-        });
-        dragHandle.addEventListener('dragend', () => {
-          draggedTaskId = null;
-          clearDragIndicators();
-        });
-        dragWrap.appendChild(dragHandle);
-
-        const taskOrderActions = document.createElement('div');
-        taskOrderActions.className = 'drag-actions';
-        const taskIndex = project.tasks.findIndex(currentTask => currentTask.id === task.id);
-        const moveTaskUpBtn = document.createElement('button');
-        moveTaskUpBtn.type = 'button';
-        moveTaskUpBtn.className = 'drag-order-btn move-task-up-btn';
-        moveTaskUpBtn.textContent = 'Up';
-        moveTaskUpBtn.title = taskReorderEnabled
-          ? 'Move ToDo up'
-          : 'Sorting is only available without search and filters';
-        moveTaskUpBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} up`);
-        moveTaskUpBtn.disabled = !taskReorderEnabled || taskIndex <= 0;
-        moveTaskUpBtn.addEventListener('click', async event => {
-          event.preventDefault();
-          event.stopPropagation();
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const taskTopBeforeMove = item.getBoundingClientRect().top;
-          if (moveTaskByStep(currentProject, task.id, -1)) {
-            await persistAndRender({
-              restoreTaskId: task.id,
-              restoreTaskTop: taskTopBeforeMove,
-              restoreFocusSelector: '.move-task-up-btn'
-            });
-          }
-        });
-        const moveTaskDownBtn = document.createElement('button');
-        moveTaskDownBtn.type = 'button';
-        moveTaskDownBtn.className = 'drag-order-btn move-task-down-btn';
-        moveTaskDownBtn.textContent = 'Down';
-        moveTaskDownBtn.title = taskReorderEnabled
-          ? 'Move ToDo down'
-          : 'Sorting is only available without search and filters';
-        moveTaskDownBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} down`);
-        moveTaskDownBtn.disabled = !taskReorderEnabled || taskIndex < 0 || taskIndex >= project.tasks.length - 1;
-        moveTaskDownBtn.addEventListener('click', async event => {
-          event.preventDefault();
-          event.stopPropagation();
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const taskTopBeforeMove = item.getBoundingClientRect().top;
-          if (moveTaskByStep(currentProject, task.id, 1)) {
-            await persistAndRender({
-              restoreTaskId: task.id,
-              restoreTaskTop: taskTopBeforeMove,
-              restoreFocusSelector: '.move-task-down-btn'
-            });
-          }
-        });
-        taskOrderActions.append(moveTaskUpBtn, moveTaskDownBtn);
-        dragWrap.appendChild(taskOrderActions);
-
-        item.addEventListener('dragover', event => {
-          if (!taskReorderEnabled) return;
-          if (!draggedTaskId || draggedTaskId === task.id) return;
-          event.preventDefault();
-          const rect = item.getBoundingClientRect();
-          const insertAfter = event.clientY > rect.top + rect.height / 2;
-          item.classList.toggle('drag-over-top', !insertAfter);
-          item.classList.toggle('drag-over-bottom', insertAfter);
-        });
-        item.addEventListener('dragleave', event => {
-          if (event.currentTarget !== event.target) return;
-          item.classList.remove('drag-over-top', 'drag-over-bottom');
-        });
-        item.addEventListener('drop', async event => {
-          if (!taskReorderEnabled) return;
-          if (!draggedTaskId || draggedTaskId === task.id) return;
-          event.preventDefault();
-          event.stopPropagation();
-          const rect = item.getBoundingClientRect();
-          const insertAfter = event.clientY > rect.top + rect.height / 2;
-          const currentProject = state.projects.find(p => p.id === project.id);
-          clearDragIndicators();
-          if (reorderProjectTasks(currentProject, draggedTaskId, task.id, insertAfter)) {
-            draggedTaskId = null;
-            await persistAndRender();
-          }
-        });
-
-        const controlStack = document.createElement('div');
-        controlStack.className = 'editor-control-stack';
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'checkbox';
-        checkbox.checked = task.done;
-        checkbox.disabled = !editable;
-        checkbox.setAttribute('aria-label', 'ToDo done');
-        checkbox.addEventListener('change', async () => {
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-          if (!currentTask) return;
-          const taskTopBeforeToggle = item.getBoundingClientRect().top;
-          currentTask.done = checkbox.checked;
-          await persistAndRender({
-            restoreTaskId: task.id,
-            restoreTaskTop: taskTopBeforeToggle,
-            restoreFocusSelector: '.checkbox'
-          });
-        });
-        controlStack.appendChild(checkbox);
-
-        const prioritySelect = document.createElement('select');
-        prioritySelect.className = 'priority-select';
-        prioritySelect.setAttribute('aria-label', 'Priority');
-        ['low', 'medium', 'high'].forEach(priority => {
-          const option = document.createElement('option');
-          option.value = priority;
-          option.textContent = priority;
-          prioritySelect.appendChild(option);
-        });
-        prioritySelect.value = ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium';
-        prioritySelect.disabled = !editable;
-        prioritySelect.addEventListener('change', () => {
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-          if (!currentTask) return;
-          currentTask.priority = prioritySelect.value;
-          scheduleAutosave();
-          if (els.searchInput.value.trim()) {
-            renderTasks();
+        const item = buildTaskRow({
+          document,
+          task,
+          editable,
+          taskReorderEnabled,
+          taskIndex: project.tasks.findIndex(currentTask => currentTask.id === task.id),
+          taskCount: project.tasks.length,
+          autoResizeTextarea,
+          clearDragIndicators,
+          formatDate,
+          normalizeDateTime,
+          relativeInfo,
+          normalizeDateOnly,
+          getDraggedTaskId() {
+            return draggedTaskId;
+          },
+          setDraggedTaskId(value) {
+            draggedTaskId = value;
+          },
+          intents: {
+            async onMoveUp({ task, item }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const taskTopBeforeMove = item.getBoundingClientRect().top;
+              if (moveTaskByStep(currentProject, task.id, -1)) {
+                await persistAndRender({
+                  restoreTaskId: task.id,
+                  restoreTaskTop: taskTopBeforeMove,
+                  restoreFocusSelector: '.move-task-up-btn'
+                });
+              }
+            },
+            async onMoveDown({ task, item }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const taskTopBeforeMove = item.getBoundingClientRect().top;
+              if (moveTaskByStep(currentProject, task.id, 1)) {
+                await persistAndRender({
+                  restoreTaskId: task.id,
+                  restoreTaskTop: taskTopBeforeMove,
+                  restoreFocusSelector: '.move-task-down-btn'
+                });
+              }
+            },
+            async onDrop({ task, draggedTaskId: movedTaskId, insertAfter }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              clearDragIndicators();
+              if (reorderProjectTasks(currentProject, movedTaskId, task.id, insertAfter)) {
+                draggedTaskId = null;
+                await persistAndRender();
+              }
+            },
+            async onToggleDone({ task, item, checked }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+              if (!currentTask) return;
+              const taskTopBeforeToggle = item.getBoundingClientRect().top;
+              currentTask.done = checked;
+              await persistAndRender({
+                restoreTaskId: task.id,
+                restoreTaskTop: taskTopBeforeToggle,
+                restoreFocusSelector: '.checkbox'
+              });
+            },
+            onPriorityChange({ task, value }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+              if (!currentTask) return;
+              currentTask.priority = value;
+              scheduleAutosave();
+              if (els.searchInput.value.trim()) {
+                renderTasks();
+              }
+            },
+            onTitleInput({ task, value }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+              if (!currentTask) return;
+              currentTask.title = value;
+              scheduleAutosave();
+            },
+            onTitleBlur({ task, input, value, previousValue }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+              if (!currentTask) return;
+              const cleanTitle = value.trim();
+              if (!cleanTitle) {
+                input.value = previousValue || currentTask.title || 'Untitled';
+              }
+              currentTask.title = input.value.trim();
+              input.value = currentTask.title;
+              autoResizeTextarea(input);
+              if (els.searchInput.value.trim()) {
+                renderTasks();
+              }
+              scheduleAutosave();
+            },
+            onNotesInput({ task, value }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+              if (!currentTask) return;
+              currentTask.notes = value;
+              scheduleAutosave();
+            },
+            onNotesBlur({ task, input, value }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+              if (!currentTask) return;
+              currentTask.notes = value;
+              input.value = currentTask.notes;
+              autoResizeTextarea(input);
+              if (els.searchInput.value.trim()) {
+                renderTasks();
+              }
+              scheduleAutosave();
+            },
+            onDueDateChange({ task, item, value }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
+              if (!currentTask) return;
+              const taskTopBeforeDueDateChange = item.getBoundingClientRect().top;
+              currentTask.dueDate = value;
+              renderTasks();
+              restoreTaskViewportAnchor(task.id, taskTopBeforeDueDateChange, '.editor-date-input');
+              scheduleAutosave();
+            },
+            async onDelete({ task }) {
+              const currentProject = state.projects.find(p => p.id === project.id);
+              if (!currentProject) return;
+              const ok = confirm(`Delete ToDo "${task.title || 'Untitled'}"?`);
+              if (!ok) return;
+              currentProject.tasks = currentProject.tasks.filter(t => t.id !== task.id);
+              await persistAndRender();
+            }
           }
         });
-        controlStack.appendChild(prioritySelect);
-
-        const body = document.createElement('div');
-        body.className = 'editor-body';
-
-        const titleInput = document.createElement('textarea');
-        titleInput.className = 'inline-title-input';
-        titleInput.value = task.title;
-        titleInput.rows = 1;
-        titleInput.placeholder = 'ToDo title';
-        titleInput.disabled = !editable;
-        titleInput.dataset.previousValue = task.title;
-        titleInput.addEventListener('focus', () => {
-          titleInput.dataset.previousValue = titleInput.value;
-          autoResizeTextarea(titleInput);
-        });
-        titleInput.addEventListener('input', () => {
-          autoResizeTextarea(titleInput);
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-          if (!currentTask) return;
-          currentTask.title = titleInput.value;
-          scheduleAutosave();
-        });
-        titleInput.addEventListener('blur', () => {
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-          if (!currentTask) return;
-          const cleanTitle = titleInput.value.trim();
-          if (!cleanTitle) {
-            titleInput.value = titleInput.dataset.previousValue || currentTask.title || 'Untitled';
-          }
-          currentTask.title = titleInput.value.trim();
-          titleInput.value = currentTask.title;
-          autoResizeTextarea(titleInput);
-          if (els.searchInput.value.trim()) {
-            renderTasks();
-          }
-          scheduleAutosave();
-        });
-
-        const notesInput = document.createElement('textarea');
-        notesInput.className = 'inline-notes-input';
-        notesInput.value = task.notes || '';
-        notesInput.rows = 1;
-        notesInput.placeholder = 'Notes';
-        notesInput.disabled = !editable;
-        notesInput.setAttribute('aria-label', 'Notes');
-        notesInput.addEventListener('focus', () => autoResizeTextarea(notesInput));
-        notesInput.addEventListener('input', () => {
-          autoResizeTextarea(notesInput);
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-          if (!currentTask) return;
-          currentTask.notes = notesInput.value;
-          scheduleAutosave();
-        });
-        notesInput.addEventListener('blur', () => {
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-          if (!currentTask) return;
-          currentTask.notes = notesInput.value;
-          notesInput.value = currentTask.notes;
-          autoResizeTextarea(notesInput);
-          if (els.searchInput.value.trim()) {
-            renderTasks();
-          }
-          scheduleAutosave();
-        });
-        const shouldShowNotesInput = typeof task.notes === 'string' && task.notes !== '';
-
-        const subrow = document.createElement('div');
-        subrow.className = 'editor-subrow';
-
-        const side = document.createElement('div');
-        side.className = 'editor-side';
-        const dueLabel = document.createElement('label');
-        dueLabel.className = 'muted editor-label';
-        dueLabel.textContent = 'Due Date';
-        const dueInput = document.createElement('input');
-        dueInput.type = 'date';
-        dueInput.className = 'editor-date-input';
-        dueInput.value = task.dueDate || '';
-        dueInput.disabled = !editable;
-        dueInput.addEventListener('change', () => {
-          const currentProject = state.projects.find(p => p.id === project.id);
-          const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-          if (!currentTask) return;
-          const taskTopBeforeDueDateChange = item.getBoundingClientRect().top;
-          currentTask.dueDate = normalizeDateOnly(dueInput.value);
-          renderTasks();
-          restoreTaskViewportAnchor(task.id, taskTopBeforeDueDateChange, '.editor-date-input');
-          scheduleAutosave();
-        });
-        side.append(dueLabel, dueInput);
-
-        const actions = document.createElement('div');
-        actions.className = 'editor-actions';
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn-danger mini editor-delete-btn';
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.title = 'Delete ToDo';
-        deleteBtn.disabled = !editable;
-        deleteBtn.addEventListener('click', async () => {
-          const currentProject = state.projects.find(p => p.id === project.id);
-          if (!currentProject) return;
-          const ok = confirm(`Delete ToDo "${task.title || 'Untitled'}"?`);
-          if (!ok) return;
-          currentProject.tasks = currentProject.tasks.filter(t => t.id !== task.id);
-          await persistAndRender();
-        });
-        actions.appendChild(deleteBtn);
-        subrow.append(side, actions);
-
-        const meta = document.createElement('div');
-        meta.className = 'editor-meta-line';
-        const created = document.createElement('span');
-        created.className = 'editor-meta-tag';
-        created.textContent = `Created: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
-        const status = document.createElement('span');
-        status.className = 'editor-meta-tag';
-        status.textContent = task.done ? 'Done' : 'Open';
-        meta.append(created, status);
-        if (task.dueDate) {
-          const due = document.createElement('span');
-          due.className = 'editor-meta-tag';
-          const dueText = relativeInfo(task.dueDate);
-          due.textContent = dueText ? `Due: ${formatDate(task.dueDate)} - ${dueText}` : `Due: ${formatDate(task.dueDate)}`;
-          meta.appendChild(due);
-        }
-
-        autoResizeTextarea(titleInput);
-        if (shouldShowNotesInput) {
-          autoResizeTextarea(notesInput);
-          body.append(titleInput, notesInput, subrow, meta);
-        } else {
-          body.append(titleInput, subrow, meta);
-        }
-
-        item.append(dragWrap, controlStack, body);
         els.taskList.appendChild(item);
       });
 
