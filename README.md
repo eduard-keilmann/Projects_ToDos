@@ -247,20 +247,4 @@ If you change the app, keep these constraints in mind:
 - keep compatibility with existing `project-todos.json` backups
 - keep Chrome/Opera file mode stable while changing Safari mode
 
-## Recommended Manual Checks
-
-After meaningful changes, verify at least:
-
-1. open the app in Chrome or Opera
-2. connect a folder and create a fresh `project-todos.json`
-3. create a project and several ToDos
-4. edit due date, priority, and done state
-5. search and filter
-6. reorder projects and tasks
-7. export and import a backup
-8. reload from disk in file mode
-9. open the app in Safari and confirm that browser-storage mode starts without a folder picker
-10. download a backup in Safari and confirm that the status updates
-11. close the tab with unsaved changes and confirm that the warning appears
-
 ## License
