@@ -1608,12 +1608,14 @@
       });
     }
 
-    function getFilteredTasks(project) {
-      if (!project) return [];
-      const filter = els.filterSelect.value;
-      const query = els.searchInput.value.trim().toLowerCase();
+    function buildTaskQueryState(project, options = {}) {
+      const filter = ['all', 'open', 'done'].includes(options.filter) ? options.filter : 'all';
+      const query = typeof options.search === 'string' ? options.search.trim().toLowerCase() : '';
+      const editable = Boolean(options.editable);
+      const reviewOnlyMode = Boolean(options.reviewOnlyMode);
+      const tasks = Array.isArray(project?.tasks) ? project.tasks : [];
 
-      return project.tasks.filter(task => {
+      const visibleTasks = tasks.filter(task => {
         const matchesFilter =
           filter === 'all' ||
           (filter === 'open' && !task.done) ||
@@ -1622,6 +1624,29 @@
         const haystack = `${task.title} ${task.priority || ''} ${task.notes || ''}`.toLowerCase();
         const matchesSearch = !query || haystack.includes(query);
         return matchesFilter && matchesSearch;
+      });
+
+      const canReorder = editable && filter === 'all' && !query;
+      let visibleCountText = `${visibleTasks.length} visible`;
+      if (!canReorder && tasks.length) {
+        visibleCountText = reviewOnlyMode
+          ? `${visibleTasks.length} visible - Read-only while browser storage remains unavailable`
+          : `${visibleTasks.length} visible - Sorting only works without search/filter`;
+      }
+
+      return {
+        visibleTasks,
+        canReorder,
+        visibleCountText
+      };
+    }
+
+    function getCurrentTaskQueryState(project) {
+      return buildTaskQueryState(project, {
+        filter: els.filterSelect.value,
+        search: els.searchInput.value,
+        editable: isEditingEnabled(),
+        reviewOnlyMode: canReviewUnsavedBrowserState()
       });
     }
 
@@ -1865,15 +1890,11 @@
       els.statOpen.textContent = String(projectCounts.open);
       els.statDone.textContent = String(projectCounts.done);
 
-      const filteredTasks = getFilteredTasks(project);
-      els.visibleTaskCount.textContent = `${filteredTasks.length} visible`;
+      const taskQuery = getCurrentTaskQueryState(project);
+      const filteredTasks = taskQuery.visibleTasks;
+      els.visibleTaskCount.textContent = taskQuery.visibleCountText;
       els.taskList.replaceChildren();
-      const taskReorderEnabled = editable && els.filterSelect.value === 'all' && !els.searchInput.value.trim();
-      if (!taskReorderEnabled && project.tasks.length) {
-        els.visibleTaskCount.textContent = reviewOnlyMode
-          ? `${filteredTasks.length} visible - Read-only while browser storage remains unavailable`
-          : `${filteredTasks.length} visible - Sorting only works without search/filter`;
-      }
+      const taskReorderEnabled = taskQuery.canReorder;
 
       if (!project.tasks.length) {
         els.emptyState.classList.remove('hidden');
@@ -3004,17 +3025,18 @@
       }
     });
     els.taskList.addEventListener('dragover', event => {
-      if (els.filterSelect.value !== 'all' || els.searchInput.value.trim()) return;
+      const currentProject = getSelectedProject();
+      if (!getCurrentTaskQueryState(currentProject).canReorder) return;
       if (!draggedTaskId) return;
       event.preventDefault();
     });
     els.taskList.addEventListener('drop', async event => {
-      if (els.filterSelect.value !== 'all' || els.searchInput.value.trim()) return;
+      const currentProject = getSelectedProject();
+      if (!getCurrentTaskQueryState(currentProject).canReorder) return;
       if (!draggedTaskId) return;
       const dropTarget = event.target.closest('.editor-task');
       if (dropTarget) return;
       event.preventDefault();
-      const currentProject = getSelectedProject();
       clearDragIndicators();
       if (moveTaskToEnd(currentProject, draggedTaskId)) {
         draggedTaskId = null;
