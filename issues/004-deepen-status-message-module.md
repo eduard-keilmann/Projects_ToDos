@@ -37,15 +37,21 @@ Architecture expectation:
 
 ## Acceptance criteria
 
-- [ ] Initial unsupported-browser status remains correct.
-- [ ] Initial Safari browser-storage status remains correct.
-- [ ] Initial Chrome/Opera file-mode status remains correct.
-- [ ] Saving, saved, migration-write, save-failed, access-missing, reload-failed, import-failed, and backup-downloaded statuses still display correct text.
-- [ ] Browser-storage backup metadata still shows last saved, last backup, and backup-out-of-date status.
-- [ ] No runtime files are added; app remains one HTML file.
+- [x] Initial unsupported-browser status remains correct.
+- [x] Initial Safari browser-storage status remains correct.
+- [x] Initial Chrome/Opera file-mode status remains correct.
+- [x] Saving, saved, migration-write, save-failed, access-missing, reload-failed, import-failed, and backup-downloaded statuses still display correct text.
+- [x] Browser-storage backup metadata still shows last saved, last backup, and backup-out-of-date status.
+- [x] No runtime files are added; app remains one HTML file.
 - [ ] Focused manual verification covers unsupported browser messaging by code inspection or browser simulation, plus normal file/browser statuses where practical.
+
+## Implementation notes
+
+- Added in-file status-policy functions `buildStorageStatus(...)` and `buildBrowserStorageMetaText(...)` inside `project_todo_tool.html`.
+- Added small bridge `setStatusObject(...)` so rendering stays simple while storage flows use named status situations.
+- Moved initial mode, browser-ready, saving, migration-write, save-failed, access-missing, reload-failed, import-failed, browser-loading, browser-unavailable, and backup-downloaded storage messages onto that shared status vocabulary.
+- Added focused regression coverage in `tests/status-message.test.js`.
 
 ## Blocked by
 
 None - can start immediately
-

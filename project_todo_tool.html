@@ -1098,20 +1098,157 @@
       return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(normalized));
     }
 
-    function browserBackupIsOutOfDate() {
-      if (!browserLastSavedAt) return false;
-      if (!browserLastExportAt) return true;
-      return new Date(browserLastExportAt).getTime() < new Date(browserLastSavedAt).getTime();
-    }
-
-    function browserStorageMetaText() {
+    function buildBrowserStorageMetaText(lastSavedAt, lastExportAt) {
       const parts = [];
-      parts.push(browserLastSavedAt ? `Last saved: ${formatDateTime(browserLastSavedAt)}` : 'No autosave yet.');
-      parts.push(browserLastExportAt ? `Last backup: ${formatDateTime(browserLastExportAt)}` : 'No backup downloaded yet.');
-      if (browserBackupIsOutOfDate()) {
+      parts.push(lastSavedAt ? `Last saved: ${formatDateTime(lastSavedAt)}` : 'No autosave yet.');
+      parts.push(lastExportAt ? `Last backup: ${formatDateTime(lastExportAt)}` : 'No backup downloaded yet.');
+      if (lastSavedAt && (!lastExportAt || new Date(lastExportAt).getTime() < new Date(lastSavedAt).getTime())) {
         parts.push('Backup out of date.');
       }
       return parts.join(' - ');
+    }
+
+    function browserStorageMetaText() {
+      return buildBrowserStorageMetaText(browserLastSavedAt, browserLastExportAt);
+    }
+
+    function buildStorageStatus(type, details = {}) {
+      const meta = details.meta || '';
+
+      switch (type) {
+        case 'initial-unsupported-browser':
+          return {
+            kind: 'err',
+            title: 'Browser Not Supported',
+            textParts: ['This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari.'],
+            meta: 'Please use current Chrome, Opera, or Safari.'
+          };
+        case 'initial-browser-storage':
+          return {
+            kind: 'warn',
+            title: 'Browser Storage Mode',
+            textParts: ['Changes can be autosaved in this browser. Use "Download Backup" whenever you want a JSON file copy.'],
+            meta: 'Browser storage has not been opened yet.'
+          };
+        case 'initial-file-mode':
+          return {
+            kind: 'warn',
+            title: 'No folder connected yet',
+            textParts: ['Click "Connect Folder" and choose the same folder as this HTML file.'],
+            meta: 'No file connection active yet.'
+          };
+        case 'browser-storage-ready':
+          return {
+            kind: 'ok',
+            title: details.title || 'Browser Storage Active',
+            textParts: ['Changes are autosaved in this browser. Use "Download Backup" to save a JSON file copy.'],
+            meta
+          };
+        case 'saving':
+          if (details.browserMode) {
+            return {
+              kind: 'warn',
+              title: 'Saving...',
+              textParts: ['Updating saved data in this browser.'],
+              meta
+            };
+          }
+          return {
+            kind: 'warn',
+            title: 'Saving...',
+            textParts: fileStatusMessage('Writing changes to ', '.'),
+            meta
+          };
+        case 'write-migrated-state':
+          if (details.browserMode) {
+            return {
+              kind: 'warn',
+              title: 'Updating Browser Data',
+              textParts: ['Older or repaired data is being rewritten in browser storage as version 5.'],
+              meta
+            };
+          }
+          return {
+            kind: 'warn',
+            title: 'Updating File',
+            textParts: fileStatusMessage('Old or repaired data is being written as version 5 to ', '.'),
+            meta
+          };
+        case 'file-autosave-active':
+          return {
+            kind: 'ok',
+            title: 'File Connected',
+            textParts: fileStatusMessage('The app saves automatically to ', '.'),
+            meta
+          };
+        case 'save-failed':
+          if (details.browserMode) {
+            return {
+              kind: 'err',
+              title: 'Save Failed',
+              textParts: ['Browser storage could not be updated. Editing is paused; unsaved changes remain in this tab. Download a backup before reloading the page.'],
+              meta
+            };
+          }
+          return {
+            kind: 'err',
+            title: 'Save Failed',
+            textParts: ['The file could not be written. Editing is paused; unsaved changes remain in the browser.'],
+            meta
+          };
+        case 'folder-access-missing':
+          return {
+            kind: 'warn',
+            title: 'Folder Remembered, Access Missing',
+            textParts: [`The folder "${details.folderName || '(unknown)'}" is known, but the browser needs permission again.`],
+            meta: 'Click "Connect Folder". The app will first try to reauthorize the remembered folder and only open the picker if needed.'
+          };
+        case 'reload-failed':
+          return {
+            kind: 'err',
+            title: 'Reload Failed',
+            textParts: ['The data file could not be read.'],
+            meta
+          };
+        case 'import-failed':
+          return {
+            kind: 'err',
+            title: 'Import Failed',
+            textParts: ['The previous state was restored. Please choose a valid JSON backup file.'],
+            meta
+          };
+        case 'backup-downloaded':
+          if (details.browserStoragePaused) {
+            return {
+              kind: 'warn',
+              title: 'Backup Downloaded',
+              textParts: ['Current in-memory data was downloaded as a backup. Browser storage is still unavailable, so editing remains paused.'],
+              meta
+            };
+          }
+          return {
+            kind: 'ok',
+            title: 'Backup Downloaded',
+            textParts: ['Changes are autosaved in this browser. Use "Download Backup" to save a JSON file copy.'],
+            meta
+          };
+        case 'browser-storage-loading':
+          return {
+            kind: 'warn',
+            title: 'Browser Storage Mode',
+            textParts: ['Loading saved data from this browser.'],
+            meta
+          };
+        case 'browser-storage-unavailable':
+          return {
+            kind: 'err',
+            title: 'Browser Storage Unavailable',
+            textParts: ['Saved data could not be opened in this browser.'],
+            meta
+          };
+        default:
+          throw new Error(`Unknown storage status type: ${type}`);
+      }
     }
 
     function setStatus(kind, title, textParts, meta = '') {
@@ -1120,6 +1257,10 @@
       currentStatusParts = Array.isArray(textParts) ? textParts : [String(textParts ?? '')];
       currentStatusMeta = meta;
       renderStatus();
+    }
+
+    function setStatusObject(status) {
+      setStatus(status.kind, status.title, status.textParts, status.meta);
     }
 
     function renderStatus() {
@@ -1140,51 +1281,48 @@
 
     function setInitialStorageStatus() {
       if (!isSupportedBrowser()) {
-        currentStatusKind = 'err';
-        currentStatusTitle = 'Browser Not Supported';
-        currentStatusParts = ['This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari.'];
-        currentStatusMeta = 'Please use current Chrome, Opera, or Safari.';
+        const status = buildStorageStatus('initial-unsupported-browser');
+        currentStatusKind = status.kind;
+        currentStatusTitle = status.title;
+        currentStatusParts = status.textParts;
+        currentStatusMeta = status.meta;
         return;
       }
       if (usesBrowserStorageMode()) {
-        currentStatusKind = 'warn';
-        currentStatusTitle = 'Browser Storage Mode';
-        currentStatusParts = ['Changes can be autosaved in this browser. Use "Download Backup" whenever you want a JSON file copy.'];
-        currentStatusMeta = 'Browser storage has not been opened yet.';
+        const status = buildStorageStatus('initial-browser-storage');
+        currentStatusKind = status.kind;
+        currentStatusTitle = status.title;
+        currentStatusParts = status.textParts;
+        currentStatusMeta = status.meta;
         return;
       }
-      currentStatusKind = 'warn';
-      currentStatusTitle = 'No folder connected yet';
-      currentStatusParts = ['Click "Connect Folder" and choose the same folder as this HTML file.'];
-      currentStatusMeta = 'No file connection active yet.';
+      const status = buildStorageStatus('initial-file-mode');
+      currentStatusKind = status.kind;
+      currentStatusTitle = status.title;
+      currentStatusParts = status.textParts;
+      currentStatusMeta = status.meta;
     }
 
     function setBrowserStorageReadyStatus(title = 'Browser Storage Active') {
-      setStatus(
-        'ok',
+      setStatusObject(buildStorageStatus('browser-storage-ready', {
         title,
-        'Changes are autosaved in this browser. Use "Download Backup" to save a JSON file copy.',
-        browserStorageMetaText()
-      );
+        meta: browserStorageMetaText()
+      }));
     }
 
     function setSavingStatus() {
       if (usesBrowserStorageMode()) {
-        setStatus(
-          'warn',
-          'Saving...',
-          'Updating saved data in this browser.',
-          browserStorageMetaText()
-        );
+        setStatusObject(buildStorageStatus('saving', {
+          browserMode: true,
+          meta: browserStorageMetaText()
+        }));
         renderStatus();
         return;
       }
-      setStatus(
-        'warn',
-        'Saving...',
-        fileStatusMessage('Writing changes to ', '.'),
-        `Folder: ${directoryHandle?.name || '(unknown)'}`
-      );
+      setStatusObject(buildStorageStatus('saving', {
+        browserMode: false,
+        meta: `Folder: ${directoryHandle?.name || '(unknown)'}`
+      }));
       renderStatus();
     }
 
@@ -2404,21 +2542,10 @@
 
     async function writeMigratedState(statusMeta) {
       markDirty();
-      if (usesBrowserStorageMode()) {
-        setStatus(
-          'warn',
-          'Updating Browser Data',
-          'Older or repaired data is being rewritten in browser storage as version 5.',
-          statusMeta || browserStorageMetaText()
-        );
-      } else {
-        setStatus(
-          'warn',
-          'Updating File',
-          fileStatusMessage('Old or repaired data is being written as version 5 to ', '.'),
-          statusMeta
-        );
-      }
+      setStatusObject(buildStorageStatus('write-migrated-state', {
+        browserMode: usesBrowserStorageMode(),
+        meta: usesBrowserStorageMode() ? (statusMeta || browserStorageMetaText()) : statusMeta
+      }));
       await queueWrite();
       stateNeedsWriteAfterRead = false;
       pendingThemeBeforeConnection = null;
@@ -2553,12 +2680,9 @@
       }
       isDirty = false;
       lastWriteFailed = false;
-      setStatus(
-        'ok',
-        'File Connected',
-        fileStatusMessage('The app saves automatically to ', '.'),
-        `Folder: ${directoryHandle?.name || '(unknown)'} - Last saved: ${new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
-      );
+      setStatusObject(buildStorageStatus('file-autosave-active', {
+        meta: `Folder: ${directoryHandle?.name || '(unknown)'} - Last saved: ${new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
+      }));
     }
 
     async function writeStateToBrowserStorage() {
@@ -2588,21 +2712,10 @@
         await saveChain;
       } catch (error) {
         lastWriteFailed = true;
-        if (usesBrowserStorageMode()) {
-          setStatus(
-            'err',
-            'Save Failed',
-            'Browser storage could not be updated. Editing is paused; unsaved changes remain in this tab. Download a backup before reloading the page.',
-            error?.message || 'Unknown error'
-          );
-        } else {
-          setStatus(
-            'err',
-            'Save Failed',
-            'The file could not be written. Editing is paused; unsaved changes remain in the browser.',
-            error?.message || 'Unknown error'
-          );
-        }
+        setStatusObject(buildStorageStatus('save-failed', {
+          browserMode: usesBrowserStorageMode(),
+          meta: error?.message || 'Unknown error'
+        }));
         render();
         throw error;
       }
@@ -2730,12 +2843,9 @@
       directoryHandle = remembered;
       const granted = await verifyPermission(directoryHandle, true, false);
       if (!granted) {
-        setStatus(
-          'warn',
-          'Folder Remembered, Access Missing',
-          `The folder "${directoryHandle.name}" is known, but the browser needs permission again.`,
-          'Click "Connect Folder". The app will first try to reauthorize the remembered folder and only open the picker if needed.'
-        );
+        setStatusObject(buildStorageStatus('folder-access-missing', {
+          folderName: directoryHandle.name
+        }));
         render();
         return;
       }
@@ -2815,12 +2925,9 @@
           `Folder: ${directoryHandle?.name || '(unknown)'}`
         );
       } catch (error) {
-        setStatus(
-          'err',
-          'Reload Failed',
-          'The data file could not be read.',
-          error?.message || 'Unknown error'
-        );
+        setStatusObject(buildStorageStatus('reload-failed', {
+          meta: error?.message || 'Unknown error'
+        }));
       }
     }
 
@@ -2910,14 +3017,15 @@
         saveBrowserStoredValue(BROWSER_META_KEY, { lastExportAt: browserLastExportAt })
           .then(() => {
             if (canReviewUnsavedBrowserState()) {
-              setStatus(
-                'warn',
-                'Backup Downloaded',
-                'Current in-memory data was downloaded as a backup. Browser storage is still unavailable, so editing remains paused.',
-                browserStorageMetaText()
-              );
+              setStatusObject(buildStorageStatus('backup-downloaded', {
+                browserStoragePaused: true,
+                meta: browserStorageMetaText()
+              }));
             } else {
-              setBrowserStorageReadyStatus('Backup Downloaded');
+              setStatusObject(buildStorageStatus('backup-downloaded', {
+                browserStoragePaused: false,
+                meta: browserStorageMetaText()
+              }));
             }
             renderStatus();
           })
@@ -2969,12 +3077,9 @@
         currentStatusParts = previousStatusParts;
         currentStatusMeta = previousStatusMeta;
         render();
-        setStatus(
-          'err',
-          'Import Failed',
-          'The previous state was restored. Please choose a valid JSON backup file.',
-          error?.message || 'Unknown error'
-        );
+        setStatusObject(buildStorageStatus('import-failed', {
+          meta: error?.message || 'Unknown error'
+        }));
         alert('The file could not be imported. Please choose a valid JSON backup file.');
       } finally {
         els.importFile.value = '';
@@ -3088,12 +3193,9 @@
     async function initBrowserStorageMode() {
       if (!supportsSafariBrowserStorageMode()) return;
       try {
-        setStatus(
-          'warn',
-          'Browser Storage Mode',
-          'Loading saved data from this browser.',
-          browserStorageMetaText()
-        );
+        setStatusObject(buildStorageStatus('browser-storage-loading', {
+          meta: browserStorageMetaText()
+        }));
         render();
         const loadedExistingState = await readStateFromBrowserStorage();
         appReady = true;
@@ -3109,12 +3211,9 @@
         appReady = false;
         isDirty = false;
         lastWriteFailed = false;
-        setStatus(
-          'err',
-          'Browser Storage Unavailable',
-          'Saved data could not be opened in this browser.',
-          error?.message || 'Unknown error'
-        );
+        setStatusObject(buildStorageStatus('browser-storage-unavailable', {
+          meta: error?.message || 'Unknown error'
+        }));
       }
       render();
     }
