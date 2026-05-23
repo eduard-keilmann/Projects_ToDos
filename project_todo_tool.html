@@ -952,7 +952,6 @@
 
     let directoryHandle = null;
     let dataFileHandle = null;
-    let saveChain = Promise.resolve();
     let appReady = false;
     let isDirty = false;
     let stateNeedsWriteAfterRead = false;
@@ -1163,6 +1162,99 @@
 
     function fileStatusMessage(prefix, suffix = '') {
       return [prefix, { strong: DATA_FILE_NAME }, suffix];
+    }
+
+    function buildPersistenceLifecycle(deps) {
+      const {
+        readCurrent,
+        writeCurrent,
+        cloneJsonData,
+        buildStorageStatus,
+        setStatusObject,
+        render
+      } = deps;
+      let saveChain = Promise.resolve();
+
+      function snapshotCurrentAppState() {
+        const current = readCurrent();
+        return {
+          directoryHandle: current.directoryHandle,
+          dataFileHandle: current.dataFileHandle,
+          appReady: current.appReady,
+          isDirty: current.isDirty,
+          stateNeedsWriteAfterRead: current.stateNeedsWriteAfterRead,
+          lastWriteFailed: current.lastWriteFailed,
+          pendingThemeBeforeConnection: current.pendingThemeBeforeConnection,
+          browserLastSavedAt: current.browserLastSavedAt,
+          state: cloneJsonData(current.state),
+          currentStatusKind: current.currentStatusKind,
+          currentStatusTitle: current.currentStatusTitle,
+          currentStatusParts: [...current.currentStatusParts],
+          currentStatusMeta: current.currentStatusMeta
+        };
+      }
+
+      return {
+        resetConnectionState() {
+          writeCurrent({
+            appReady: false,
+            dataFileHandle: null,
+            lastWriteFailed: false
+          });
+        },
+        snapshotCurrentAppState,
+        restoreSnapshot(snapshot) {
+          writeCurrent({
+            directoryHandle: snapshot.directoryHandle,
+            dataFileHandle: snapshot.dataFileHandle,
+            appReady: snapshot.appReady,
+            isDirty: snapshot.isDirty,
+            stateNeedsWriteAfterRead: snapshot.stateNeedsWriteAfterRead,
+            lastWriteFailed: snapshot.lastWriteFailed,
+            pendingThemeBeforeConnection: snapshot.pendingThemeBeforeConnection,
+            browserLastSavedAt: snapshot.browserLastSavedAt,
+            state: cloneJsonData(snapshot.state),
+            currentStatusKind: snapshot.currentStatusKind,
+            currentStatusTitle: snapshot.currentStatusTitle,
+            currentStatusParts: [...snapshot.currentStatusParts],
+            currentStatusMeta: snapshot.currentStatusMeta
+          });
+        },
+        markWriteSucceeded(options = {}) {
+          const nextState = {
+            isDirty: false,
+            lastWriteFailed: false
+          };
+
+          if (Object.prototype.hasOwnProperty.call(options, 'browserLastSavedAt')) {
+            nextState.browserLastSavedAt = options.browserLastSavedAt;
+          }
+          if (options.clearMigrationState) {
+            nextState.stateNeedsWriteAfterRead = false;
+            nextState.pendingThemeBeforeConnection = null;
+          }
+
+          writeCurrent(nextState);
+        },
+        markWriteFailed(details) {
+          writeCurrent({
+            lastWriteFailed: true
+          });
+          setStatusObject(buildStorageStatus('save-failed', details));
+          render();
+        },
+        async queueWrite(writeOperation, buildFailureDetails) {
+          saveChain = saveChain
+            .catch(() => undefined)
+            .then(() => writeOperation());
+          try {
+            await saveChain;
+          } catch (error) {
+            this.markWriteFailed(buildFailureDetails(error));
+            throw error;
+          }
+        }
+      };
     }
 
     function normalizeStoredTimestamp(value) {
@@ -1497,6 +1589,45 @@
       }
       return JSON.parse(JSON.stringify(value));
     }
+
+    const persistenceLifecycle = buildPersistenceLifecycle({
+      readCurrent() {
+        return {
+          directoryHandle,
+          dataFileHandle,
+          appReady,
+          isDirty,
+          stateNeedsWriteAfterRead,
+          lastWriteFailed,
+          pendingThemeBeforeConnection,
+          browserLastSavedAt,
+          state,
+          currentStatusKind,
+          currentStatusTitle,
+          currentStatusParts,
+          currentStatusMeta
+        };
+      },
+      writeCurrent(next) {
+        if (Object.prototype.hasOwnProperty.call(next, 'directoryHandle')) directoryHandle = next.directoryHandle;
+        if (Object.prototype.hasOwnProperty.call(next, 'dataFileHandle')) dataFileHandle = next.dataFileHandle;
+        if (Object.prototype.hasOwnProperty.call(next, 'appReady')) appReady = next.appReady;
+        if (Object.prototype.hasOwnProperty.call(next, 'isDirty')) isDirty = next.isDirty;
+        if (Object.prototype.hasOwnProperty.call(next, 'stateNeedsWriteAfterRead')) stateNeedsWriteAfterRead = next.stateNeedsWriteAfterRead;
+        if (Object.prototype.hasOwnProperty.call(next, 'lastWriteFailed')) lastWriteFailed = next.lastWriteFailed;
+        if (Object.prototype.hasOwnProperty.call(next, 'pendingThemeBeforeConnection')) pendingThemeBeforeConnection = next.pendingThemeBeforeConnection;
+        if (Object.prototype.hasOwnProperty.call(next, 'browserLastSavedAt')) browserLastSavedAt = next.browserLastSavedAt;
+        if (Object.prototype.hasOwnProperty.call(next, 'state')) state = next.state;
+        if (Object.prototype.hasOwnProperty.call(next, 'currentStatusKind')) currentStatusKind = next.currentStatusKind;
+        if (Object.prototype.hasOwnProperty.call(next, 'currentStatusTitle')) currentStatusTitle = next.currentStatusTitle;
+        if (Object.prototype.hasOwnProperty.call(next, 'currentStatusParts')) currentStatusParts = next.currentStatusParts;
+        if (Object.prototype.hasOwnProperty.call(next, 'currentStatusMeta')) currentStatusMeta = next.currentStatusMeta;
+      },
+      cloneJsonData,
+      buildStorageStatus,
+      setStatusObject,
+      render
+    });
 
     function normalizeDateTime(value, fallbackValue = '') {
       if (typeof value === 'string') {
@@ -2555,9 +2686,7 @@
     }
 
     function resetConnectionState() {
-      appReady = false;
-      dataFileHandle = null;
-      lastWriteFailed = false;
+      persistenceLifecycle.resetConnectionState();
     }
 
     function confirmDiscardUnsaved(actionText) {
@@ -2600,8 +2729,9 @@
         meta: storageMode.usesBrowserStorage ? (statusMeta || browserStorageMetaText()) : statusMeta
       }));
       await queueWrite();
-      stateNeedsWriteAfterRead = false;
-      pendingThemeBeforeConnection = null;
+      persistenceLifecycle.markWriteSucceeded({
+        clearMigrationState: true
+      });
     }
 
     async function initializeEmptyDataFile() {
@@ -2731,8 +2861,7 @@
         }
         throw error;
       }
-      isDirty = false;
-      lastWriteFailed = false;
+      persistenceLifecycle.markWriteSucceeded();
       setStatusObject(buildStorageStatus('file-autosave-active', {
         meta: `Folder: ${directoryHandle?.name || '(unknown)'} - Last saved: ${new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date())}`
       }));
@@ -2741,11 +2870,10 @@
     async function writeStateToBrowserStorage() {
       const payload = createPayload();
       await saveBrowserStoredValue(BROWSER_PAYLOAD_KEY, payload);
-      browserLastSavedAt = payload.savedAt;
-      isDirty = false;
-      lastWriteFailed = false;
-      stateNeedsWriteAfterRead = false;
-      pendingThemeBeforeConnection = null;
+      persistenceLifecycle.markWriteSucceeded({
+        browserLastSavedAt: payload.savedAt,
+        clearMigrationState: true
+      });
       setBrowserStorageReadyStatus();
     }
 
@@ -2758,20 +2886,10 @@
     }
 
     async function queueWrite() {
-      saveChain = saveChain
-        .catch(() => undefined)
-        .then(() => writeCurrentState());
-      try {
-        await saveChain;
-      } catch (error) {
-        lastWriteFailed = true;
-        setStatusObject(buildStorageStatus('save-failed', {
-          browserMode: getStorageMode().usesBrowserStorage,
-          meta: error?.message || 'Unknown error'
-        }));
-        render();
-        throw error;
-      }
+      await persistenceLifecycle.queueWrite(writeCurrentState, error => ({
+        browserMode: getStorageMode().usesBrowserStorage,
+        meta: error?.message || 'Unknown error'
+      }));
     }
 
     async function persistAndRender(options = {}) {
@@ -2789,18 +2907,7 @@
     }
 
     async function pickNewDirectory() {
-      const previousDirectoryHandle = directoryHandle;
-      const previousDataFileHandle = dataFileHandle;
-      const previousAppReady = appReady;
-      const previousIsDirty = isDirty;
-      const previousLastWriteFailed = lastWriteFailed;
-      const previousStateNeedsWriteAfterRead = stateNeedsWriteAfterRead;
-      const previousPendingThemeBeforeConnection = pendingThemeBeforeConnection;
-      const previousState = cloneJsonData(state);
-      const previousStatusKind = currentStatusKind;
-      const previousStatusTitle = currentStatusTitle;
-      const previousStatusParts = [...currentStatusParts];
-      const previousStatusMeta = currentStatusMeta;
+      const snapshot = persistenceLifecycle.snapshotCurrentAppState();
       const picked = await window.showDirectoryPicker({
         id: 'project-todo-tool-folder',
         mode: 'readwrite'
@@ -2815,20 +2922,9 @@
         await activateConnectedDirectory('File Connected');
         await saveRememberedDirectoryHandle(directoryHandle);
       } catch (error) {
-        directoryHandle = previousDirectoryHandle;
-        dataFileHandle = previousDataFileHandle;
-        appReady = previousAppReady;
-        isDirty = previousIsDirty;
-        lastWriteFailed = previousLastWriteFailed;
-        stateNeedsWriteAfterRead = previousStateNeedsWriteAfterRead;
-        pendingThemeBeforeConnection = previousPendingThemeBeforeConnection;
-        state = previousState;
-        currentStatusKind = previousStatusKind;
-        currentStatusTitle = previousStatusTitle;
-        currentStatusParts = previousStatusParts;
-        currentStatusMeta = previousStatusMeta;
-        if (previousDirectoryHandle) {
-          await saveRememberedDirectoryHandle(previousDirectoryHandle);
+        persistenceLifecycle.restoreSnapshot(snapshot);
+        if (snapshot.directoryHandle) {
+          await saveRememberedDirectoryHandle(snapshot.directoryHandle);
         } else {
           await clearRememberedDirectoryHandle();
         }
@@ -3099,15 +3195,7 @@
         els.importFile.value = '';
         return;
       }
-      const previousState = cloneJsonData(state);
-      const previousDirty = isDirty;
-      const previousLastWriteFailed = lastWriteFailed;
-      const previousStateNeedsWriteAfterRead = stateNeedsWriteAfterRead;
-      const previousPendingThemeBeforeConnection = pendingThemeBeforeConnection;
-      const previousStatusKind = currentStatusKind;
-      const previousStatusTitle = currentStatusTitle;
-      const previousStatusParts = [...currentStatusParts];
-      const previousStatusMeta = currentStatusMeta;
+      const snapshot = persistenceLifecycle.snapshotCurrentAppState();
       try {
         const text = await file.text();
         const normalized = normalizePersistedState(JSON.parse(text));
@@ -3120,15 +3208,7 @@
             : 'Import successful. The connected data file was updated immediately.'
         );
       } catch (error) {
-        state = previousState;
-        isDirty = previousDirty;
-        lastWriteFailed = previousLastWriteFailed;
-        stateNeedsWriteAfterRead = previousStateNeedsWriteAfterRead;
-        pendingThemeBeforeConnection = previousPendingThemeBeforeConnection;
-        currentStatusKind = previousStatusKind;
-        currentStatusTitle = previousStatusTitle;
-        currentStatusParts = previousStatusParts;
-        currentStatusMeta = previousStatusMeta;
+        persistenceLifecycle.restoreSnapshot(snapshot);
         render();
         setStatusObject(buildStorageStatus('import-failed', {
           meta: error?.message || 'Unknown error'

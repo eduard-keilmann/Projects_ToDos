@@ -37,17 +37,24 @@ Architecture expectation:
 
 ## Acceptance criteria
 
-- [ ] Autosave still serializes writes and preserves current save-failure behavior.
-- [ ] Failed file writes still pause editing and keep unsaved in-memory state.
-- [ ] Failed browser-storage writes still pause editing and allow backup download.
-- [ ] Folder switch failure restores previous directory handle, file handle, state, dirty flags, migration flags, pending theme, and status.
-- [ ] Import failure restores previous state, dirty flags, migration flags, pending theme, and status.
-- [ ] Regrant/reconnect flows still attempt to save dirty state before reloading from disk.
-- [ ] `beforeunload` warning still appears when dirty state exists.
-- [ ] No runtime files are added; app remains one HTML file.
+- [x] Autosave still serializes writes and preserves current save-failure behavior.
+- [x] Failed file writes still pause editing and keep unsaved in-memory state.
+- [x] Failed browser-storage writes still pause editing and allow backup download.
+- [x] Folder switch failure restores previous directory handle, file handle, state, dirty flags, migration flags, pending theme, and status.
+- [x] Import failure restores previous state, dirty flags, migration flags, pending theme, and status.
+- [x] Regrant/reconnect flows still attempt to save dirty state before reloading from disk.
+- [x] `beforeunload` warning still appears when dirty state exists.
+- [x] No runtime files are added; app remains one HTML file.
 - [ ] Focused manual verification covers failed import, canceled folder picker, save failure path by code inspection or browser permission simulation, and successful autosave.
+
+## Implementation notes
+
+- Added in-file lifecycle seam `buildPersistenceLifecycle(...)` in `project_todo_tool.html`.
+- Centralized rollback snapshots and restore logic for folder switching and backup import.
+- Centralized grouped write-success, write-failure, and migration-cleanup flag updates.
+- Moved autosave queue serialization behind the lifecycle seam so write ordering and failure handling live in one place.
+- Added focused regression coverage in `tests/persistence-lifecycle.test.js`.
 
 ## Blocked by
 
 - 005-deepen-storage-mode-module.md
-
