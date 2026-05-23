@@ -1426,6 +1426,24 @@
       };
     }
 
+    function normalizePersistedState(input, options = {}) {
+      const normalizedState = normalizeIncomingState(input);
+      let needsWriteAfterRead = stateDiffersAfterNormalization(input, normalizedState);
+
+      if (options.pendingTheme) {
+        if (normalizedState.settings.theme !== options.pendingTheme) {
+          normalizedState.settings.theme = options.pendingTheme;
+          needsWriteAfterRead = true;
+        }
+      }
+
+      return {
+        state: normalizedState,
+        needsWriteAfterRead,
+        savedAt: normalizeStoredTimestamp(input?.savedAt)
+      };
+    }
+
     function createPayload() {
       return {
         app: 'Project ToDo Tool',
@@ -2455,17 +2473,12 @@
         ensureSelection();
         return false;
       }
-      const normalizedState = normalizeIncomingState(storedPayload);
-      stateNeedsWriteAfterRead = stateDiffersAfterNormalization(storedPayload, normalizedState);
-      state = normalizedState;
-      browserLastSavedAt = normalizeStoredTimestamp(storedPayload?.savedAt);
-      if (pendingThemeBeforeConnection) {
-        state.settings = state.settings || { theme: 'dark' };
-        if (state.settings.theme !== pendingThemeBeforeConnection) {
-          state.settings.theme = pendingThemeBeforeConnection;
-          stateNeedsWriteAfterRead = true;
-        }
-      }
+      const normalized = normalizePersistedState(storedPayload, {
+        pendingTheme: pendingThemeBeforeConnection
+      });
+      state = normalized.state;
+      stateNeedsWriteAfterRead = normalized.needsWriteAfterRead;
+      browserLastSavedAt = normalized.savedAt;
       ensureSelection();
       return true;
     }
@@ -2481,17 +2494,11 @@
           ensureSelection();
           return false;
         }
-        const parsed = JSON.parse(text);
-        const normalizedState = normalizeIncomingState(parsed);
-        stateNeedsWriteAfterRead = stateDiffersAfterNormalization(parsed, normalizedState);
-        state = normalizedState;
-        if (pendingThemeBeforeConnection) {
-          state.settings = state.settings || { theme: 'dark' };
-          if (state.settings.theme !== pendingThemeBeforeConnection) {
-            state.settings.theme = pendingThemeBeforeConnection;
-            stateNeedsWriteAfterRead = true;
-          }
-        }
+        const normalized = normalizePersistedState(JSON.parse(text), {
+          pendingTheme: pendingThemeBeforeConnection
+        });
+        state = normalized.state;
+        stateNeedsWriteAfterRead = normalized.needsWriteAfterRead;
         ensureSelection();
         return true;
       } catch (error) {
@@ -2921,8 +2928,8 @@
       const previousStatusMeta = currentStatusMeta;
       try {
         const text = await file.text();
-        const nextState = normalizeIncomingState(JSON.parse(text));
-        state = nextState;
+        const normalized = normalizePersistedState(JSON.parse(text));
+        state = normalized.state;
         markDirty();
         await persistAndRender();
         alert(
