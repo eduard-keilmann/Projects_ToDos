@@ -2414,19 +2414,27 @@
         updateMarkdownDisplay();
         if (!markdownCheckbox.checked) autoResizeTextarea(titleInput);
       });
+      function startMarkdownEditing() {
+        const view = document.defaultView;
+        const scrollX = view?.scrollX;
+        const scrollY = view?.scrollY;
+        updateMarkdownDisplay(true);
+        titleInput.focus({ preventScroll: true });
+        if (view && (view.scrollX !== scrollX || view.scrollY !== scrollY)) {
+          view.scrollTo(scrollX, scrollY);
+        }
+      }
       markdownPreview.addEventListener('click', event => {
         if (!editable || event.target.closest('a')) return;
         const selection = document.getSelection?.();
         if (selection && !selection.isCollapsed &&
             (markdownPreview.contains(selection.anchorNode) || markdownPreview.contains(selection.focusNode))) return;
-        updateMarkdownDisplay(true);
-        titleInput.focus();
+        startMarkdownEditing();
       });
       markdownPreview.addEventListener('keydown', event => {
         if (editable && event.target === markdownPreview && (event.key === 'Enter' || event.key === ' ')) {
           event.preventDefault();
-          updateMarkdownDisplay(true);
-          titleInput.focus();
+          startMarkdownEditing();
         }
       });
       titleInput.addEventListener('focus', () => {

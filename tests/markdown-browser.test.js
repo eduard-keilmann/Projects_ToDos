@@ -53,7 +53,29 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
       checkbox.checked = false;
       checkbox.dispatchEvent(new Event('change'));
       if (input.scrollHeight > input.clientHeight + 1) throw Error('Editor is clipped: ' + input.scrollHeight + '/' + input.clientHeight + ' height ' + input.style.height);
-      document.getElementById('result').textContent = 'PASS';
+      const spacer = document.createElement('div');
+      spacer.style.height = '1200px';
+      document.body.appendChild(spacer);
+      const longRow = buildTaskRow({ ...options, task: { ...options.task, id: 'long', title: '**Long task**\n' + Array(100).fill('A long line').join('\n') } });
+      document.body.appendChild(longRow);
+      const bottomSpacer = document.createElement('div');
+      bottomSpacer.style.height = '1200px';
+      document.body.appendChild(bottomSpacer);
+      window.scrollTo(0, longRow.getBoundingClientRect().top + window.scrollY + 400);
+      const previousScroll = window.scrollY;
+      longRow.querySelector('.markdown-preview').click();
+      const longInput = longRow.querySelector('textarea.inline-title-input');
+      if (document.activeElement !== longInput) throw Error('Editor did not retain focus');
+      if (Math.abs(window.scrollY - previousScroll) > 2) throw Error('Viewport moved: ' + previousScroll + ' to ' + window.scrollY);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (document.activeElement !== longInput) {
+          document.getElementById('result').textContent = 'FAIL: Focus changed after layout';
+        } else if (Math.abs(window.scrollY - previousScroll) > 2) {
+          document.getElementById('result').textContent = 'FAIL: Viewport moved after layout';
+        } else {
+          document.getElementById('result').textContent = 'PASS';
+        }
+      }));
     } catch (error) {
       document.getElementById('result').textContent = 'FAIL: ' + error.message;
     }
@@ -62,7 +84,7 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
   try {
     const file = path.join(dir, 'test.html');
     fs.writeFileSync(file, harness);
-    const output = execFileSync(browser, ['--headless', '--disable-gpu', '--user-data-dir=' + path.join(dir, 'profile'), '--dump-dom', pathToFileURL(file).href], { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
+    const output = execFileSync(browser, ['--headless', '--disable-gpu', '--virtual-time-budget=1000', '--user-data-dir=' + path.join(dir, 'profile'), '--dump-dom', pathToFileURL(file).href], { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
     assert.equal(output.match(/<output id="result">([^<]*)<\/output>/)?.[1], 'PASS');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
