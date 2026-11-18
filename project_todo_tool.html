@@ -2455,9 +2455,8 @@
         intents = {}
       } = options;
 
-      const currentStatus = normalizeTaskStatus(task.status, task.done);
       const item = document.createElement('div');
-      item.className = 'editor-task' + (currentStatus === 'done' ? ' done' : '');
+      item.className = 'editor-task';
       item.dataset.taskId = task.id;
 
       const dragWrap = document.createElement('div');
@@ -2548,7 +2547,6 @@
         option.textContent = status.label;
         statusSelect.appendChild(option);
       });
-      statusSelect.value = currentStatus;
       statusSelect.addEventListener('change', event => intents.onStatusChange?.({
         task, item, value: statusSelect.value, event
       }));
@@ -2563,7 +2561,6 @@
         option.textContent = priority;
         prioritySelect.appendChild(option);
       });
-      prioritySelect.value = ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium';
       prioritySelect.addEventListener('change', event => intents.onPriorityChange?.({
         task,
         item,
@@ -2714,7 +2711,6 @@
       const dueInput = document.createElement('input');
       dueInput.type = 'date';
       dueInput.className = 'editor-date-input';
-      dueInput.value = task.dueDate || '';
       dueInput.addEventListener('change', event => intents.onDueDateChange?.({
         task,
         item,
@@ -2741,15 +2737,7 @@
       created.textContent = `Created: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
       const status = document.createElement('span');
       status.className = 'editor-meta-tag';
-      status.textContent = taskStatusOptions().find(option => option.value === currentStatus).label;
       meta.append(created, status);
-      if (task.dueDate) {
-        const due = document.createElement('span');
-        due.className = 'editor-meta-tag task-due-tag';
-        const dueText = relativeInfo(task.dueDate);
-        due.textContent = dueText ? `Due: ${formatDate(task.dueDate)} - ${dueText}` : `Due: ${formatDate(task.dueDate)}`;
-        meta.appendChild(due);
-      }
 
       updateMarkdownDisplay();
       autoResizeTextarea(titleInput);
