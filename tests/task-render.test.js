@@ -32,7 +32,7 @@ function loadTaskRenderFunction() {
     module: { exports: {} }
   };
 
-  const source = extractFunctionSource(script, 'buildTaskRow');
+  const source = ['taskStatusOptions', 'normalizeTaskStatus'].map(name => extractFunctionSource(script, name)).join('\n\n') + '\n\n' + extractFunctionSource(script, 'buildTaskRow');
   vm.runInNewContext(`${source}\n\nmodule.exports = { buildTaskRow };`, context);
   return context.module.exports;
 }
@@ -427,4 +427,27 @@ test('fenced code is preserved and only selected languages receive highlighting'
     assert.equal(row.querySelector('.markdown-toggle').classList.contains('hidden'), false);
     assert.equal(row.querySelector('.inline-title-input').value, title);
   }
+});
+
+
+test('status selector displays the current status and reports changes', () => {
+  const { buildTaskRow } = loadTaskRenderFunction();
+  const calls = [];
+  const row = buildTaskRow({
+    document: createDocument(), task: createTask({ status: 'in-review' }),
+    editable: true, taskReorderEnabled: true, taskIndex: 0, taskCount: 1,
+    autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
+    normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
+    getDraggedTaskId: () => null, setDraggedTaskId() {},
+    intents: { onStatusChange({ value }) { calls.push(value); } }
+  });
+  const select = row.querySelector('.status-select');
+  assert.equal(select.value, 'in-review');
+  assert.deepEqual(select.children.map(option => option.textContent), ['Open', 'In Progress', 'In Review', 'Awaiting Acceptance', 'Done']);
+  assert.equal(row.querySelector('.editor-meta-line').children[1].textContent, 'In Review');
+  select.value = 'done';
+  select.dispatchEvent({ type: 'change' });
+  select.value = 'open';
+  select.dispatchEvent({ type: 'change' });
+  assert.deepEqual(calls, ['done', 'open']);
 });

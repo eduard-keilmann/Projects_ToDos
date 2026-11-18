@@ -32,7 +32,7 @@ function loadTaskQueryFunction() {
     module: { exports: {} }
   };
 
-  const source = extractFunctionSource(script, 'buildTaskQueryState');
+  const source = ['taskStatusOptions', 'normalizeTaskStatus'].map(name => extractFunctionSource(script, name)).join('\n\n') + '\n\n' + extractFunctionSource(script, 'buildTaskQueryState');
   vm.runInNewContext(`${source}\n\nmodule.exports = { buildTaskQueryState };`, context);
   return context.module.exports;
 }
@@ -95,4 +95,18 @@ test('buildTaskQueryState returns the visible-count messaging used by render and
     reviewOnlyMode: true
   });
   assert.equal(reviewOnly.visibleCountText, '3 visible - Read-only while browser storage remains unavailable');
+});
+
+
+test('status filters distinguish each status and include all unfinished tasks', () => {
+  const { buildTaskQueryState } = loadTaskQueryFunction();
+  const statuses = ['open', 'in-progress', 'in-review', 'awaiting-acceptance', 'done'];
+  const project = { tasks: statuses.map(status => ({ id: status, title: status, status, done: status === 'done' })) };
+  for (const status of statuses) {
+    const result = buildTaskQueryState(project, { filter: status, editable: true });
+    assert.deepEqual(Array.from(result.visibleTasks, task => task.id), [status]);
+    assert.equal(result.canReorder, false);
+  }
+  const unfinished = buildTaskQueryState(project, { filter: 'not-done', editable: true });
+  assert.deepEqual(Array.from(unfinished.visibleTasks, task => task.id), statuses.slice(0, 4));
 });

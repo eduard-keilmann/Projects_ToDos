@@ -19,7 +19,7 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
   }
   const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
   const harness = '<!doctype html><style>' + css + '</style><main id="tasks"></main><output id="result">NOT RUN</output><script>' +
-    source('autoResizeTextarea') + source('resizeRenderedNoteFields') + source('buildTaskRow') + String.raw`
+    source('autoResizeTextarea') + source('resizeRenderedNoteFields') + source('taskStatusOptions') + source('normalizeTaskStatus') + source('buildTaskRow') + String.raw`
     const options = {
       document, task: { id: 'test', title: '**Safe** <img src=x onerror="window.injected=true">', notes: '', priority: 'medium', done: false, dueDate: '', createdAt: '2026-01-01T00:00:00Z' },
       editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,

@@ -44,7 +44,8 @@ function loadNormalizationFunctions() {
     'normalizeLongText',
     'normalizeDateTime',
     'normalizeDateOnly',
-    'normalizeBoolean',
+    'taskStatusOptions',
+    'normalizeTaskStatus',
     'normalizePriority',
     'ensureUniqueId',
     'stateDiffersAfterNormalization',
@@ -130,4 +131,34 @@ test('normalizePersistedState preserves a pending theme and flags the rewritten 
   assert.equal(result.savedAt, '2026-05-01T10:00:00.000Z');
   assert.equal(result.state.settings.theme, 'light');
   assert.equal(result.needsWriteAfterRead, true);
+});
+
+
+test('legacy completion states migrate and current statuses survive a JSON round trip', () => {
+  const { normalizePersistedState } = loadNormalizationFunctions();
+  const createdAt = '2026-05-01T10:00:00.000Z';
+  const task = (id, extra) => ({ id, title: id, notes: '', dueDate: '', priority: 'medium', createdAt, ...extra });
+  const payload = {
+    version: 5, savedAt: createdAt,
+    data: { selectedProjectId: 'p', settings: { theme: 'dark' }, projects: [{
+      id: 'p', name: 'Project', createdAt,
+      tasks: [task('old-open', { done: false }), task('old-done', { done: true }),
+        task('progress', { status: 'in-progress', done: true }),
+        task('review', { status: 'in-review', done: false }),
+        task('acceptance', { status: 'awaiting-acceptance', done: false }),
+        task('done', { status: 'done', done: false }), task('invalid', { status: 'invalid', done: true })]
+    }] }
+  };
+  const migrated = normalizePersistedState(payload);
+  assert.equal(migrated.needsWriteAfterRead, true);
+  const tasks = migrated.state.projects[0].tasks;
+  assert.deepEqual(Array.from(tasks, t => [t.status, t.done]), [
+    ['open', false], ['done', true], ['in-progress', false], ['in-review', false],
+    ['awaiting-acceptance', false], ['done', true], ['done', true]
+  ]);
+  const stored = JSON.parse(JSON.stringify({ version: 6, savedAt: createdAt, data: migrated.state }));
+  const reloaded = normalizePersistedState(stored);
+  assert.equal(reloaded.needsWriteAfterRead, false);
+  assert.deepEqual(Array.from(reloaded.state.projects[0].tasks, t => [t.status, t.done]),
+    Array.from(tasks, t => [t.status, t.done]));
 });

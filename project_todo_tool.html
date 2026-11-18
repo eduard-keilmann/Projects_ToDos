@@ -381,7 +381,7 @@
 
     .editor-task {
       display: grid;
-      grid-template-columns: 68px 52px minmax(0, 1fr);
+      grid-template-columns: 68px 160px minmax(0, 1fr);
       gap: 10px;
       align-items: start;
       padding: 16px 16px 16px 12px;
@@ -488,15 +488,6 @@
       gap: 8px;
       min-width: 52px;
       padding-top: 2px;
-    }
-
-    .editor-check-preview {
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      border: 1px dashed var(--border);
-      background: var(--surface-2);
-      flex: 0 0 auto;
     }
 
     .editor-body {
@@ -645,6 +636,7 @@
       min-width: 0;
     }
 
+    .status-select,
     .priority-select {
       width: 100%;
       min-width: 0;
@@ -709,14 +701,6 @@
       gap: 12px;
       align-items: start;
       flex-wrap: wrap;
-    }
-
-    .checkbox {
-      margin-top: 4px;
-      width: 20px;
-      height: 20px;
-      accent-color: var(--primary);
-      cursor: pointer;
     }
 
     .mini {
@@ -792,7 +776,7 @@
       }
 
       .editor-task {
-        grid-template-columns: 64px 50px minmax(0, 1fr);
+        grid-template-columns: 64px 150px minmax(0, 1fr);
       }
 
       .editor-subrow {
@@ -935,7 +919,7 @@
               <div class="drag-handle drag-preview" aria-hidden="true">::</div>
             </div>
             <div class="editor-control-stack">
-              <div class="editor-check-preview" aria-hidden="true"></div>
+              <select class="status-select" aria-label="Status for new ToDo" disabled><option>Open</option></select>
               <select id="taskPriority" class="priority-select" aria-label="Priority for new ToDo">
                 <option value="low">low</option>
                 <option value="medium" selected>medium</option>
@@ -965,8 +949,12 @@
       <section class="toolbar">
         <select id="filterSelect" style="max-width: 220px;" aria-label="Task filter">
           <option value="all">All Tasks</option>
-          <option value="open">Open Only</option>
-          <option value="done">Done Only</option>
+          <option value="not-done">Not Done</option>
+          <option value="open">Open</option>
+          <option value="in-progress">In Progress</option>
+          <option value="in-review">In Review</option>
+          <option value="awaiting-acceptance">Awaiting Acceptance</option>
+          <option value="done">Done</option>
         </select>
         <input id="searchInput" type="text" placeholder="Search ToDos" style="max-width: 280px;" aria-label="Search ToDos" />
         <div class="spacer"></div>
@@ -1375,14 +1363,14 @@
             return {
               kind: 'warn',
               title: 'Updating Browser Data',
-              textParts: ['Older or repaired data is being rewritten in browser storage as version 5.'],
+              textParts: ['Older or repaired data is being rewritten in browser storage as version 6.'],
               meta
             };
           }
           return {
             kind: 'warn',
             title: 'Updating File',
-            textParts: fileStatusMessage('Old or repaired data is being written as version 5 to ', '.'),
+            textParts: fileStatusMessage('Old or repaired data is being written as version 6 to ', '.'),
             meta
           };
         case 'file-autosave-active':
@@ -1689,8 +1677,18 @@
       return isValidDateOnly(value) ? value : '';
     }
 
-    function normalizeBoolean(value) {
-      return value === true;
+    function taskStatusOptions() {
+      return [
+        { value: 'open', label: 'Open' },
+        { value: 'in-progress', label: 'In Progress' },
+        { value: 'in-review', label: 'In Review' },
+        { value: 'awaiting-acceptance', label: 'Awaiting Acceptance' },
+        { value: 'done', label: 'Done' }
+      ];
+    }
+
+    function normalizeTaskStatus(value, done) {
+      return taskStatusOptions().some(status => status.value === value) ? value : (done === true ? 'done' : 'open');
     }
 
     function normalizePriority(value) {
@@ -1710,7 +1708,7 @@
 
     function stateDiffersAfterNormalization(input, normalizedState) {
       const incoming = input?.data ?? input;
-      if (input?.version !== 5) return true;
+      if (input?.version !== 6) return true;
       if (!incoming || !Array.isArray(incoming.projects)) return true;
       if ((incoming.selectedProjectId ?? null) !== (normalizedState.selectedProjectId ?? null)) return true;
       if ((incoming?.settings?.theme === 'light' ? 'light' : 'dark') !== normalizedState.settings.theme) return true;
@@ -1734,7 +1732,8 @@
             normalizeLongText(task?.notes, '') !== normalizedTask.notes ||
             normalizeDateOnly(task?.dueDate) !== normalizedTask.dueDate ||
             normalizePriority(task?.priority) !== normalizedTask.priority ||
-            normalizeBoolean(task?.done) !== normalizedTask.done ||
+            task?.status !== normalizedTask.status ||
+            task?.done !== normalizedTask.done ||
             normalizeDateTime(task?.createdAt, normalizedTask.createdAt) !== normalizedTask.createdAt
           );
         });
@@ -1752,15 +1751,19 @@
       const projects = incoming.projects.map(project => {
         const taskIds = new Set();
         const tasks = Array.isArray(project?.tasks)
-          ? project.tasks.map(task => ({
-              id: ensureUniqueId('task', taskIds, task?.id),
-              title: normalizeText(task?.title, 'Untitled Task'),
-              notes: normalizeLongText(task?.notes, ''),
-              dueDate: normalizeDateOnly(task?.dueDate),
-              priority: normalizePriority(task?.priority),
-              done: normalizeBoolean(task?.done),
-              createdAt: normalizeDateTime(task?.createdAt, normalizationTimestamp)
-            }))
+          ? project.tasks.map(task => {
+              const status = normalizeTaskStatus(task?.status, task?.done);
+              return {
+                id: ensureUniqueId('task', taskIds, task?.id),
+                title: normalizeText(task?.title, 'Untitled Task'),
+                notes: normalizeLongText(task?.notes, ''),
+                dueDate: normalizeDateOnly(task?.dueDate),
+                priority: normalizePriority(task?.priority),
+                status,
+                done: status === 'done',
+                createdAt: normalizeDateTime(task?.createdAt, normalizationTimestamp)
+              };
+            })
           : [];
 
         return {
@@ -1806,7 +1809,7 @@
     function createPayload() {
       return {
         app: 'Project ToDo Tool',
-        version: 5,
+        version: 6,
         savedAt: new Date().toISOString(),
         data: state
       };
@@ -1969,17 +1972,15 @@
     }
 
     function buildTaskQueryState(project, options = {}) {
-      const filter = ['all', 'open', 'done'].includes(options.filter) ? options.filter : 'all';
+      const filter = ['all', 'not-done', ...taskStatusOptions().map(status => status.value)].includes(options.filter) ? options.filter : 'all';
       const query = typeof options.search === 'string' ? options.search.trim().toLowerCase() : '';
       const editable = Boolean(options.editable);
       const reviewOnlyMode = Boolean(options.reviewOnlyMode);
       const tasks = Array.isArray(project?.tasks) ? project.tasks : [];
 
       const visibleTasks = tasks.filter(task => {
-        const matchesFilter =
-          filter === 'all' ||
-          (filter === 'open' && !task.done) ||
-          (filter === 'done' && task.done);
+        const status = normalizeTaskStatus(task.status, task.done);
+        const matchesFilter = filter === 'all' || (filter === 'not-done' && status !== 'done') || filter === status;
 
         const haystack = `${task.title} ${task.priority || ''} ${task.notes || ''}`.toLowerCase();
         const matchesSearch = !query || haystack.includes(query);
@@ -2300,20 +2301,21 @@
       const controlStack = document.createElement('div');
       controlStack.className = 'editor-control-stack';
 
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.className = 'checkbox';
-      checkbox.checked = task.done;
-      checkbox.disabled = !editable;
-      checkbox.setAttribute('aria-label', 'ToDo done');
-      checkbox.addEventListener('change', event => intents.onToggleDone?.({
-        task,
-        item,
-        checkbox,
-        checked: checkbox.checked,
-        event
+      const statusSelect = document.createElement('select');
+      statusSelect.className = 'status-select';
+      statusSelect.setAttribute('aria-label', 'ToDo status');
+      taskStatusOptions().forEach(status => {
+        const option = document.createElement('option');
+        option.value = status.value;
+        option.textContent = status.label;
+        statusSelect.appendChild(option);
+      });
+      statusSelect.value = normalizeTaskStatus(task.status, task.done);
+      statusSelect.disabled = !editable;
+      statusSelect.addEventListener('change', event => intents.onStatusChange?.({
+        task, item, value: statusSelect.value, event
       }));
-      controlStack.appendChild(checkbox);
+      controlStack.appendChild(statusSelect);
 
       const prioritySelect = document.createElement('select');
       prioritySelect.className = 'priority-select';
@@ -2621,7 +2623,7 @@
       created.textContent = `Created: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
       const status = document.createElement('span');
       status.className = 'editor-meta-tag';
-      status.textContent = task.done ? 'Done' : 'Open';
+      status.textContent = taskStatusOptions().find(option => option.value === normalizeTaskStatus(task.status, task.done)).label;
       meta.append(created, status);
       if (task.dueDate) {
         const due = document.createElement('span');
@@ -2800,16 +2802,17 @@
                 await persistAndRender();
               }
             },
-            async onToggleDone({ task, item, checked }) {
+            async onStatusChange({ task, item, value }) {
               const currentProject = state.projects.find(p => p.id === project.id);
               const currentTask = currentProject?.tasks.find(t => t.id === task.id);
               if (!currentTask) return;
-              const taskTopBeforeToggle = item.getBoundingClientRect().top;
-              currentTask.done = checked;
+              const taskTopBeforeChange = item.getBoundingClientRect().top;
+              currentTask.status = normalizeTaskStatus(value, currentTask.done);
+              currentTask.done = currentTask.status === 'done';
               await persistAndRender({
                 restoreTaskId: task.id,
-                restoreTaskTop: taskTopBeforeToggle,
-                restoreFocusSelector: '.checkbox'
+                restoreTaskTop: taskTopBeforeChange,
+                restoreFocusSelector: '.status-select'
               });
             },
             onPriorityChange({ task, value }) {
@@ -3493,6 +3496,7 @@
         notes: '',
         dueDate,
         priority,
+        status: 'open',
         done: false,
         createdAt: new Date().toISOString()
       });

@@ -25,7 +25,7 @@ The app lets you:
 
 - create and delete projects
 - create, edit, reorder, and delete ToDos
-- mark ToDos as done
+- track ToDos through Open, In Progress, In Review, Awaiting Acceptance, and Done
 - set priority and due dates
 - search and filter tasks
 - import and export JSON backups
@@ -106,14 +106,14 @@ The app writes a payload wrapper around the actual task data.
 
 Current payload version:
 
-- `5`
+- `6`
 
 Shape:
 
 ```json
 {
   "app": "Project ToDo Tool",
-  "version": 5,
+  "version": 6,
   "savedAt": "2026-05-07T12:34:56.789Z",
   "data": {
     "projects": [],
@@ -130,6 +130,8 @@ The loader accepts:
 - payload wrapper objects
 - direct state objects
 - older backups that need normalization or migration
+
+Each ToDo stores a status and a compatibility field `done`. Only `done` status sets `done: true`; the other statuses set it to false. Older data without a status is migrated from `done`. Older versions of the app do not understand the additional statuses and can discard them when saving.
 
 Normalization repairs or clears:
 
@@ -153,7 +155,7 @@ Normalization repairs or clears:
 
 Press `Enter` or `Shift+Enter` if you want a line break in the quick-entry field.
 
-New ToDos are inserted into the list and stay inline-editable.
+New ToDos are inserted into the list with status Open and stay inline-editable. The status selector allows transitions in either direction. The status filter can show each individual status or all unfinished ToDos.
 
 ### Edit a ToDo
 
@@ -162,7 +164,7 @@ You can update:
 - title
 - due date
 - priority
-- done state
+- status
 
 Notes remain persisted and searchable. The inline notes field appears only for tasks that already contain stored notes.
 

@@ -107,7 +107,7 @@ test('buildStorageStatus keeps file and browser save/failure wording in one plac
   assert.deepEqual(toPlainJson(buildStorageStatus('write-migrated-state', { browserMode: false, meta: 'Folder: Work' })), {
     kind: 'warn',
     title: 'Updating File',
-    textParts: ['Old or repaired data is being written as version 5 to ', { strong: 'project-todos.json' }, '.'],
+    textParts: ['Old or repaired data is being written as version 6 to ', { strong: 'project-todos.json' }, '.'],
     meta: 'Folder: Work'
   });
 });
