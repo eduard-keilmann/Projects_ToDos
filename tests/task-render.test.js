@@ -348,3 +348,25 @@ test('Markdown display builds safe elements and does not interpret raw HTML', ()
   assert.equal(preview.querySelector('a').href, 'https://example.com');
   assert.equal(preview.querySelector('a').rel, 'noopener noreferrer');
 });
+
+
+test('disabling Markdown resizes the now-visible multiline editor', () => {
+  const { buildTaskRow } = loadTaskRenderFunction();
+  const resizedVisibleInputs = [];
+  const row = buildTaskRow({
+    document: createDocument(), task: createTask({ title: '**Title**\nSecond line\nThird line', notes: '' }),
+    editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
+    autoResizeTextarea(input) {
+      if (!input.classList.contains('hidden')) resizedVisibleInputs.push(input);
+    },
+    clearDragIndicators() {}, formatDate: value => value,
+    normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
+    getDraggedTaskId: () => null, setDraggedTaskId() {}
+  });
+  resizedVisibleInputs.length = 0;
+  const checkbox = row.querySelector('.markdown-checkbox');
+  checkbox.checked = false;
+  checkbox.dispatchEvent({ type: 'change' });
+  assert.equal(row.querySelector('.inline-title-input').classList.contains('hidden'), false);
+  assert.equal(resizedVisibleInputs.includes(row.querySelector('.inline-title-input')), true);
+});

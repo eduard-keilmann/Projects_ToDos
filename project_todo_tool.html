@@ -2035,7 +2035,7 @@
     }
 
     function resizeRenderedNoteFields() {
-      document.querySelectorAll('.inline-title-input, .inline-notes-input').forEach(autoResizeTextarea);
+      document.querySelectorAll('textarea.inline-title-input, textarea.inline-notes-input').forEach(autoResizeTextarea);
     }
 
     function createReorderModule() {
@@ -2389,6 +2389,7 @@
       markdownCheckbox.addEventListener('change', () => {
         markdownPreferences.set(task, markdownCheckbox.checked);
         updateMarkdownDisplay();
+        if (!markdownCheckbox.checked) autoResizeTextarea(titleInput);
       });
       markdownPreview.addEventListener('click', event => {
         if (!editable || event.target.closest('a')) return;
