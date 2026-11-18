@@ -2315,6 +2315,7 @@
       statusSelect.addEventListener('change', event => intents.onStatusChange?.({
         task, item, value: statusSelect.value, event
       }));
+      statusSelect.addEventListener('blur', event => intents.onSelectBlur?.({ event }));
       controlStack.appendChild(statusSelect);
 
       const prioritySelect = document.createElement('select');
@@ -2334,6 +2335,7 @@
         value: prioritySelect.value,
         event
       }));
+      prioritySelect.addEventListener('blur', event => intents.onSelectBlur?.({ event }));
       controlStack.appendChild(prioritySelect);
 
       const markdownLabel = document.createElement('label');
@@ -2561,7 +2563,10 @@
       notesInput.placeholder = 'Notes';
       notesInput.disabled = !editable;
       notesInput.setAttribute('aria-label', 'Notes');
-      notesInput.addEventListener('focus', () => autoResizeTextarea(notesInput));
+      notesInput.addEventListener('focus', () => {
+        notesInput.dataset.previousValue = notesInput.value;
+        autoResizeTextarea(notesInput);
+      });
       notesInput.addEventListener('input', event => {
         autoResizeTextarea(notesInput);
         intents.onNotesInput?.({
@@ -2750,6 +2755,16 @@
 
       els.emptyState.classList.add('hidden');
 
+      let pendingFilterRefresh = false;
+      function deferFilterRefresh(event) {
+        const next = event.relatedTarget;
+        if (next && els.taskList.contains(next) && next.matches('.status-select, .priority-select')) {
+          pendingFilterRefresh = true;
+          return true;
+        }
+        return false;
+      }
+
       filteredTasks.forEach(task => {
         const item = buildTaskRow({
           document,
@@ -2802,6 +2817,12 @@
                 await persistAndRender();
               }
             },
+            onSelectBlur({ event }) {
+              if (pendingFilterRefresh && !deferFilterRefresh(event)) {
+                pendingFilterRefresh = false;
+                renderTasks();
+              }
+            },
             async onStatusChange({ task, item, value }) {
               const currentProject = state.projects.find(p => p.id === project.id);
               const currentTask = currentProject?.tasks.find(t => t.id === task.id);
@@ -2832,7 +2853,7 @@
               currentTask.title = value;
               scheduleAutosave();
             },
-            onTitleBlur({ task, input, value, previousValue }) {
+            onTitleBlur({ task, input, value, previousValue, event }) {
               const currentProject = state.projects.find(p => p.id === project.id);
               const currentTask = currentProject?.tasks.find(t => t.id === task.id);
               if (!currentTask) return;
@@ -2843,7 +2864,7 @@
               currentTask.title = input.value.trim();
               input.value = currentTask.title;
               autoResizeTextarea(input);
-              if (els.searchInput.value.trim()) {
+              if (els.searchInput.value.trim() && input.value !== previousValue && !deferFilterRefresh(event)) {
                 renderTasks();
               }
               scheduleAutosave();
@@ -2855,14 +2876,14 @@
               currentTask.notes = value;
               scheduleAutosave();
             },
-            onNotesBlur({ task, input, value }) {
+            onNotesBlur({ task, input, value, event }) {
               const currentProject = state.projects.find(p => p.id === project.id);
               const currentTask = currentProject?.tasks.find(t => t.id === task.id);
               if (!currentTask) return;
               currentTask.notes = value;
               input.value = currentTask.notes;
               autoResizeTextarea(input);
-              if (els.searchInput.value.trim()) {
+              if (els.searchInput.value.trim() && input.value !== input.dataset.previousValue && !deferFilterRefresh(event)) {
                 renderTasks();
               }
               scheduleAutosave();
@@ -3261,8 +3282,7 @@
       if (!isEditingEnabled()) return;
       setSavingStatus();
       await queueWrite();
-      render();
-      restoreTaskViewportAnchor(restoreTaskId, restoreTaskTop, restoreFocusSelector);
+      renderStatus();
     }
 
     async function pickNewDirectory() {
