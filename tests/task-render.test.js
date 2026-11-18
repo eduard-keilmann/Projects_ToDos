@@ -400,3 +400,31 @@ test('escaped markup stays literal alongside actual Markdown', () => {
   assert.equal(preview.querySelector('em'), null);
   assert.equal(preview.querySelector('p').children.map(child => child.textContent).join(''), 'Bold *literal* snake_case_name');
 });
+
+
+test('fenced code is preserved and only selected languages receive highlighting', () => {
+  const { buildTaskRow } = loadTaskRenderFunction();
+  const fence = String.fromCharCode(96).repeat(3);
+  for (const [language, code, highlighted] of [
+    ['python', 'def run():\n    return "hello"', true],
+    ['bash', 'if true; then echo hi; fi', true],
+    ['cpp', 'int main() { return 0; }', true],
+    ['powershell', 'if ($x) { return 1 }', false],
+    ['', 'return 1', false]
+  ]) {
+    const title = fence + language + '\n' + code + '\n' + fence;
+    const row = buildTaskRow({
+      document: createDocument(), task: createTask({ title, notes: '' }),
+      editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
+      autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
+      normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
+      getDraggedTaskId: () => null, setDraggedTaskId() {}
+    });
+    const block = row.querySelector('pre').querySelector('code');
+    const displayed = block.children.length ? block.children.map(child => child.textContent).join('') : block.textContent;
+    assert.equal(displayed, code, language);
+    assert.equal(Boolean(block.querySelector('.code-keyword')), highlighted, language);
+    assert.equal(row.querySelector('.markdown-toggle').classList.contains('hidden'), false);
+    assert.equal(row.querySelector('.inline-title-input').value, title);
+  }
+});

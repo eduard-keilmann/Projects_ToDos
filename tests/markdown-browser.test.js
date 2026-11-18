@@ -62,6 +62,34 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
       if (numberedLists.length !== 5 || numberedLists.some((list, index) => list.start !== index + 1 || list.children.length !== 1)) {
         throw Error('List numbering is incorrect');
       }
+      const fence = String.fromCharCode(96).repeat(3);
+      const codeCases = [
+        ['python', 'def test():\n    return "<img src=x>" # note', 'def'],
+        ['py', 'return 1', 'return'],
+        ['bash', 'if true; then\n  echo "hi" # note\nfi', 'if'],
+        ['sh', 'for x in a; do echo x; done', 'for'],
+        ['shell', 'while true; do break; done', 'while'],
+        ['c', 'int main() { return 0; }', 'int'],
+        ['cpp', 'class Example { public: int value; };', 'class'],
+        ['c++', 'const int value = 1;', 'const'],
+        ['powershell', 'if ($x) { return "hi" }', ''],
+        ['ps1', 'if ($x) { return "hi" }', ''],
+        ['constructor', 'return 1', ''],
+        ['', 'return 1', '']
+      ];
+      for (const [language, code, keyword] of codeCases) {
+        const raw = fence + language + '\n' + code + '\n' + fence;
+        const codeRow = buildTaskRow({ ...options, task: { ...options.task, title: raw } });
+        const block = codeRow.querySelector('.markdown-preview pre code');
+        if (!block || block.textContent !== code || block.querySelector('img')) throw Error('Incorrect code block: ' + language);
+        if (codeRow.querySelector('textarea.inline-title-input').value !== raw) throw Error('Code source changed: ' + language);
+        const highlighted = block.querySelector('.code-keyword');
+        if (keyword ? !highlighted || highlighted.textContent !== keyword : block.querySelector('.code-keyword, .code-string, .code-comment')) {
+          throw Error('Incorrect highlighting: ' + language);
+        }
+      }
+      const unfinished = buildTaskRow({ ...options, task: { ...options.task, title: fence + 'python\nreturn 1' } });
+      if (unfinished.querySelector('.markdown-preview pre code').textContent !== 'return 1') throw Error('Unclosed code block lost text');
       const spacer = document.createElement('div');
       spacer.style.height = '1200px';
       document.body.appendChild(spacer);

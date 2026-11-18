@@ -548,6 +548,23 @@
     .markdown-preview ul, .markdown-preview ol { padding-left: 1.5em; }
     .markdown-preview blockquote { padding-left: 0.7em; border-left: 3px solid var(--border); }
     .markdown-preview code { background: var(--surface-3); border-radius: 4px; padding: 0 3px; }
+    .markdown-preview pre {
+      margin: 0 0 0.4em;
+      padding: 10px 12px;
+      overflow-x: auto;
+      white-space: pre;
+      word-break: normal;
+      background: var(--surface-3);
+      border-radius: 10px;
+    }
+    .markdown-preview pre code { padding: 0; background: transparent; }
+    .code-keyword { color: #a73b91; font-weight: 600; }
+    .code-string { color: #147448; }
+    .code-comment { color: #596d7a; }
+    html[data-theme="dark"] .code-keyword { color: #f0a4e2; }
+    html[data-theme="dark"] .code-string { color: #8de3ad; }
+    html[data-theme="dark"] .code-comment { color: #a6baca; }
+
     .markdown-toggle { font-size: 0.7rem; color: var(--muted); text-align: center; }
     .markdown-toggle input { display: block; margin: 0 auto 3px; }
     .editor-task.done .markdown-preview { text-decoration: line-through; color: var(--muted); }
@@ -2349,8 +2366,77 @@
         let hasMarkdown = false;
         markdownPreview.textContent = '';
         let list = null;
+        let codeBlock = null;
+
+        function finishCodeBlock() {
+          const text = codeBlock.lines.join('\n');
+          const languages = {
+            python: 'python', py: 'python', bash: 'shell', sh: 'shell', shell: 'shell',
+            c: 'c', cpp: 'c', 'c++': 'c'
+          };
+          const language = Object.prototype.hasOwnProperty.call(languages, codeBlock.language)
+            ? languages[codeBlock.language] : null;
+          if (!language) {
+            codeBlock.element.textContent = text;
+            return;
+          }
+          const keywords = {
+            python: /^(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|False|finally|for|from|global|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|True|try|while|with|yield)$/,
+            shell: /^(?:if|then|else|elif|fi|for|while|do|done|case|esac|in|function|return|local|export|readonly|unset|break|continue)$/,
+            c: /^(?:auto|bool|break|case|char|class|const|constexpr|continue|default|delete|do|double|else|enum|extern|false|float|for|if|inline|int|long|namespace|new|nullptr|private|protected|public|return|short|signed|sizeof|static|struct|switch|template|this|true|typedef|union|unsigned|using|void|volatile|while)$/
+          };
+          const tokens = language === 'c'
+            ? /\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_]\w*/g
+            : /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_]\w*/g;
+          let position = 0;
+          for (const match of text.matchAll(tokens)) {
+            const token = match[0];
+            const type = token.startsWith('#') || token.startsWith('//') || token.startsWith('/*')
+              ? 'comment' : token.startsWith('"') || token.startsWith("'") ? 'string'
+              : keywords[language].test(token) ? 'keyword' : '';
+            if (!type) continue;
+            const plain = document.createElement('span');
+            plain.textContent = text.slice(position, match.index);
+            codeBlock.element.appendChild(plain);
+            const highlighted = document.createElement('span');
+            highlighted.className = 'code-' + type;
+            highlighted.textContent = token;
+            codeBlock.element.appendChild(highlighted);
+            position = match.index + token.length;
+          }
+          const remainder = document.createElement('span');
+          remainder.textContent = text.slice(position);
+          codeBlock.element.appendChild(remainder);
+        }
 
         titleInput.value.split('\n').forEach(line => {
+          if (codeBlock) {
+            const closing = line.match(/^ {0,3}(`{3,})[ \t]*$/);
+            if (closing && closing[1].length >= codeBlock.fenceLength) {
+              finishCodeBlock();
+              codeBlock = null;
+            } else {
+              codeBlock.lines.push(line);
+            }
+            return;
+          }
+          const opening = line.match(/^ {0,3}(`{3,})([^`]*)$/);
+          if (opening) {
+            hasMarkdown = true;
+            list = null;
+            const pre = document.createElement('pre');
+            const code = document.createElement('code');
+            pre.appendChild(code);
+            markdownPreview.appendChild(pre);
+            codeBlock = {
+              element: code,
+              fenceLength: opening[1].length,
+              language: opening[2].trim().split(/\s+/)[0].toLowerCase(),
+              lines: []
+            };
+            return;
+          }
+
           const heading = line.match(/^ {0,3}(#{1,3})[ \t]+(.+)$/);
           const listItem = line.match(/^ {0,3}([-*+]|\d+\.)[ \t]+(.+)$/);
           const quote = line.match(/^ {0,3}>[ \t]+(.+)$/);
@@ -2403,6 +2489,8 @@
           block.appendChild(rest);
           (list || markdownPreview).appendChild(block);
         });
+
+        if (codeBlock) finishCodeBlock();
 
         markdownLabel.classList.toggle('hidden', !hasMarkdown);
         const showPreview = hasMarkdown && markdownCheckbox.checked && !editing;
