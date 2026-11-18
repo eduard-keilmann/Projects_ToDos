@@ -4,20 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function extractFunctionSource(script, name) {
-  const startToken = `function ${name}(`;
-  const startIndex = script.indexOf(startToken);
-  if (startIndex === -1) {
-    throw new Error(`Could not find function ${name}`);
-  }
-
-  const nextFunctionIndex = script.indexOf('\n    function ', startIndex + startToken.length);
-  if (nextFunctionIndex === -1) {
-    throw new Error(`Could not find end of function ${name}`);
-  }
-
-  return script.slice(startIndex, nextFunctionIndex).trim();
-}
+const { extractFunctionSource } = require('./helpers/app-source');
 
 function loadStatusFunctions() {
   const htmlPath = path.join(__dirname, '..', 'project_todo_tool.html');

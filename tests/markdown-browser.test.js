@@ -1,25 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
-const { pathToFileURL } = require('node:url');
 
-const browser = process.env.MARKDOWN_TEST_BROWSER;
+const { extractFunctionSource } = require('./helpers/app-source');
+const { runBrowserHtml, browserAvailable } = require('./helpers/browser');
 
-test('Markdown preview treats HTML as text and adjusts to changing content in a browser', { skip: !browser || !fs.existsSync(browser) }, () => {
+test('Markdown preview treats HTML as text and adjusts to changing content in a browser', { skip: !browserAvailable }, async () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'project_todo_tool.html'), 'utf8');
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
-  function source(name) {
-    const start = script.indexOf('function ' + name + '(');
-    const end = script.indexOf('\n    function ', start + 1);
-    if (start < 0 || end < 0) throw new Error('Missing function ' + name);
-    return script.slice(start, end);
-  }
   const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
   const harness = '<!doctype html><style>' + css + '</style><main id="tasks"></main><output id="result">NOT RUN</output><script>' +
-    source('autoResizeTextarea') + source('resizeRenderedNoteFields') + source('taskStatusOptions') + source('normalizeTaskStatus') + source('buildTaskRow') + String.raw`
+    extractFunctionSource(script, 'autoResizeTextarea') + extractFunctionSource(script, 'resizeRenderedNoteFields') + extractFunctionSource(script, 'taskStatusOptions') + extractFunctionSource(script, 'normalizeTaskStatus') + extractFunctionSource(script, 'normalizePriority') + extractFunctionSource(script, 'buildTaskRow') + String.raw`
     const options = {
       document, task: { id: 'test', title: '**Safe** <img src=x onerror="window.injected=true">', notes: '', priority: 'medium', done: false, dueDate: '', createdAt: '2026-01-01T00:00:00Z' },
       editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
@@ -117,13 +109,6 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
       document.getElementById('result').textContent = 'FAIL: ' + error.message;
     }
   ` + '</script>';
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'todo-markdown-test-'));
-  try {
-    const file = path.join(dir, 'test.html');
-    fs.writeFileSync(file, harness);
-    const output = execFileSync(browser, ['--headless', '--disable-gpu', '--virtual-time-budget=1000', '--user-data-dir=' + path.join(dir, 'profile'), '--dump-dom', pathToFileURL(file).href], { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
-    assert.equal(output.match(/<output id="result">([^<]*)<\/output>/)?.[1], 'PASS');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-  }
+  const output = await runBrowserHtml(harness);
+  assert.equal(output.match(/<output id="result">([^<]*)<\/output>/)?.[1], 'PASS');
 });

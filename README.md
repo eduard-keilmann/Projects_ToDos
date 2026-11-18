@@ -251,6 +251,6 @@ If you change the app, keep these constraints in mind:
 - keep compatibility with existing `project-todos.json` backups
 - keep Chrome/Chromium file mode stable while changing Safari mode
 
-Run `node --test tests/*.test.js` to execute the tests. The supported browser targets are Chrome/Chromium and Safari. Set `MARKDOWN_TEST_BROWSER` to a Chrome or Chromium executable to run the automated Markdown browser test. The test is skipped if the variable is unset or the executable is unavailable. Safari is not covered by this automated test and requires a separate browser check.
+Run `node --test tests/*.test.js` to execute the tests. The supported browser targets are Chrome/Chromium and Safari. Set `MARKDOWN_TEST_BROWSER` to a Chrome or Chromium executable to run the automated Markdown and task-editor browser tests. These tests are skipped if the variable is unset or the executable is unavailable. Safari is not covered by these automated tests and requires a separate browser check.
 
 ## License

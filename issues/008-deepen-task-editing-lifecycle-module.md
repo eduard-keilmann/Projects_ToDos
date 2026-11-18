@@ -117,3 +117,19 @@ Exercise the actual editor used by the application, rather than reconstructed pr
 7. Replace redundant implementation-coupled tests after boundary tests pass. Review both code and tests for unnecessary wrappers and duplicate policies.
 
 Keep this work scoped to the editing lifecycle. Do not combine it with a new Markdown grammar, storage backend, schema migration, framework, or unrelated architectural cleanup.
+
+## Implementation status
+
+- [x] Added the in-file editor with retained rows and project-scoped identity.
+- [x] Centralized task edits and explicit structural actions; reused the existing autosave queue.
+- [x] Moved deferred filtering and listener lifetime into the editor; visible counts describe retained rows.
+- [x] Added stale-row guards, project-aware delayed focus restoration, and disposal.
+- [x] Reused the existing Markdown implementation; no schema or runtime dependency changes.
+- [x] Replaced the obsolete source-sliced filter test with editor-boundary coverage.
+- [x] Consolidated repeated source-extraction and browser-runner test helpers.
+- [x] Added a real-application browser scenario for selection, status changes, saving, filtering, reordering, deletion, replacement, access changes, and reset.
+- [ ] Complete manual native-dropdown/keyboard and narrow-viewport verification in Chrome/Chromium and Safari;
+
+The concrete editor also accepts an optional onViewChange callback to publish rendered visibility counts after deferred updates. It owns no persistence or second task store. Browser fixtures use controlled save completion and access state; they do not replace the persistence-failure tests.
+
+Verification: 35 local tests passed; both optional Chrome browser tests passed in a separate sequential run. Both in-file JavaScript blocks passed syntax compilation. No TypeScript/typechecker configuration exists. Earlier browser attempts encountered shutdown timeouts/profile locks; the final shared-runner checks completed successfully. Safari and manual native-dropdown/keyboard/narrow-viewport verification remain open above.

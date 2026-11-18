@@ -966,6 +966,136 @@
     </main>
   </div>
 
+  <script id="task-editor-module">
+    function createTaskListEditor({ root, onEdit, onAction, onViewChange = () => {} }) {
+      let view = null;
+      let project = null;
+      let disposed = false;
+      let pending = false;
+      let interacting = false;
+      const rows = new Map();
+      const document = root.ownerDocument;
+
+      function enterInteraction() { interacting = true; }
+      function refreshAfterFocus(event) {
+        interacting = root.contains(event.relatedTarget);
+        if (pending && !interacting) update(view, true);
+      }
+      root.addEventListener('focusin', enterInteraction);
+      root.addEventListener('focusout', refreshAfterFocus);
+
+      function update(nextView, interactionEnded = false) {
+        if (disposed) return { visibleCount: 0 };
+        view = nextView;
+        const nextProject = view.project;
+        // A replacement project (including import) invalidates all row closures.
+        if (project !== nextProject) {
+          rows.clear();
+          project = nextProject;
+          pending = false;
+          interacting = false;
+          root.replaceChildren();
+        }
+        if (!project) return { visibleCount: 0 };
+        const query = buildTaskQueryState(project, {
+          search: view.query.search, filter: view.query.filter,
+          editable: view.access.editable, reviewOnlyMode: view.access.reviewOnly
+        });
+        const active = !interactionEnded && (interacting || root.contains(document.activeElement));
+        const wanted = query.visibleTasks.map(task => task.id);
+        const current = Array.from(root.children, row => row.dataset.taskId);
+        const tasksById = new Map(project.tasks.map((task, index) => [task.id, { task, index }]));
+        const structuralChange = wanted.length !== current.length || wanted.some((id, index) => id !== current[index]);
+        const deleted = current.some(id => !tasksById.has(id));
+        // Never remove/move an active native control for a background refresh.
+        pending = structuralChange && active && view.access.editable && !deleted;
+        const displayed = pending ? current : wanted;
+        const displayedIds = new Set(displayed);
+        for (const [id, row] of rows) {
+          if (!displayedIds.has(id)) { row.remove(); rows.delete(id); }
+        }
+        for (const id of displayed) {
+          const { task, index } = tasksById.get(id);
+          const rowView = {
+            task, editable: view.access.editable,
+            taskReorderEnabled: query.canReorder,
+            taskIndex: index, taskCount: project.tasks.length
+          };
+          let row = rows.get(id);
+          if (!row) {
+            const rowProject = project;
+            const projectId = project.id;
+            const edit = (field, value) => {
+              if (!disposed && project === rowProject && rows.get(id) === row) {
+                onEdit({ projectId, taskId: id, field, value });
+              }
+            };
+            const action = (type, details) => {
+              if (!disposed && project === rowProject && rows.get(id) === row) {
+                onAction({ ...details, projectId, taskId: id, type });
+              }
+            };
+            row = buildTaskRow({
+              document, ...rowView, markdownPreferences,
+              autoResizeTextarea, clearDragIndicators, formatDate, normalizeDateTime,
+              relativeInfo, normalizeDateOnly,
+              getDraggedTaskId: () => draggedTaskId,
+              setDraggedTaskId: value => { draggedTaskId = value; },
+              intents: {
+                onTitleInput: ({ value }) => edit('title', value),
+                onTitleBlur({ input, value, previousValue }) {
+                  const normalized = value.trim() || previousValue || 'Untitled';
+                  if (input.value !== normalized) {
+                    input.value = normalized;
+                    autoResizeTextarea(input);
+                  }
+                  edit('title', normalized);
+                },
+                onNotesInput: ({ value }) => edit('notes', value),
+                onNotesBlur: ({ value }) => edit('notes', value),
+                onPriorityChange: ({ value }) => edit('priority', value),
+                onStatusChange: ({ value }) => edit('status', value),
+                onDueDateChange: ({ value }) => edit('dueDate', value),
+                onMoveUp: details => action('move-up', details),
+                onMoveDown: details => action('move-down', details),
+                onDrop: details => action('drop', details),
+                onDelete: details => action('delete', details)
+              }
+            });
+            rows.set(id, row);
+          } else {
+            row.updateTask(rowView);
+          }
+        }
+        if (!pending) {
+          // insertBefore is only used for actual order changes, not every update.
+          displayed.forEach((id, index) => {
+            const row = rows.get(id);
+            if (root.children[index] !== row) {
+              const mounting = !row.isConnected;
+              root.insertBefore(row, root.children[index] || null);
+              if (mounting) row.querySelectorAll('textarea').forEach(autoResizeTextarea);
+            }
+          });
+        }
+        const result = { visibleCount: displayed.length, pending, visibleCountText: query.visibleCountText };
+        onViewChange(result);
+        return result;
+      }
+      return {
+        update,
+        dispose() {
+          disposed = true;
+          root.removeEventListener('focusin', enterInteraction);
+          root.removeEventListener('focusout', refreshAfterFocus);
+          rows.clear();
+          root.replaceChildren();
+          view = null;
+          project = null;
+        }
+      };
+    }
+  </script>
   <script>
     const DATA_FILE_NAME = 'project-todos.json';
     const HANDLE_DB_NAME = 'project-todo-tool-handles';
@@ -1036,6 +1166,8 @@
       themeToggleBtn: document.getElementById('themeToggleBtn'),
       draftCreatedAt: document.getElementById('draftCreatedAt')
     };
+
+    const taskEditor = createTaskListEditor({ root: els.taskList, onEdit: applyTaskEdit, onAction: applyTaskAction, onViewChange: displayTaskListResult });
 
     function uid(prefix = 'id') {
       return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -2048,7 +2180,7 @@
       };
       resize();
       if (textarea.isConnected) {
-        requestAnimationFrame(resize);
+        requestAnimationFrame(() => { if (textarea.isConnected) resize(); });
       }
     }
 
@@ -2124,8 +2256,9 @@
     function restoreTaskViewportAnchor(taskId, previousTop, focusSelector = '') {
       if (!taskId || typeof previousTop !== 'number') return;
       const activeElement = document.activeElement;
+      const project = getSelectedProject();
       requestAnimationFrame(() => {
-        if (document.activeElement !== activeElement) return;
+        if (getSelectedProject() !== project || document.activeElement !== activeElement) return;
         const taskElement = findRenderedTaskById(taskId);
         if (!taskElement) return;
         if (focusSelector) {
@@ -2186,7 +2319,7 @@
     }
 
     function buildTaskRow(options) {
-      const {
+      let {
         document,
         task,
         editable,
@@ -2216,11 +2349,6 @@
       const dragHandle = document.createElement('div');
       dragHandle.className = 'drag-handle';
       dragHandle.textContent = '::';
-      dragHandle.draggable = taskReorderEnabled;
-      dragHandle.title = taskReorderEnabled
-        ? 'Drag to reorder'
-        : 'Sorting is only available without search and filters';
-      dragHandle.setAttribute('aria-label', `Reorder ToDo ${task.title || 'Untitled'} with drag and drop`);
       dragHandle.addEventListener('dragstart', event => {
         if (!taskReorderEnabled) {
           event.preventDefault();
@@ -2247,11 +2375,6 @@
       moveTaskUpBtn.type = 'button';
       moveTaskUpBtn.className = 'drag-order-btn move-task-up-btn';
       moveTaskUpBtn.textContent = 'Up';
-      moveTaskUpBtn.title = taskReorderEnabled
-        ? 'Move ToDo up'
-        : 'Sorting is only available without search and filters';
-      moveTaskUpBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} up`);
-      moveTaskUpBtn.disabled = !taskReorderEnabled || taskIndex <= 0;
       moveTaskUpBtn.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
@@ -2262,11 +2385,6 @@
       moveTaskDownBtn.type = 'button';
       moveTaskDownBtn.className = 'drag-order-btn move-task-down-btn';
       moveTaskDownBtn.textContent = 'Down';
-      moveTaskDownBtn.title = taskReorderEnabled
-        ? 'Move ToDo down'
-        : 'Sorting is only available without search and filters';
-      moveTaskDownBtn.setAttribute('aria-label', `Move ToDo ${task.title || 'Untitled'} down`);
-      moveTaskDownBtn.disabled = !taskReorderEnabled || taskIndex < 0 || taskIndex >= taskCount - 1;
       moveTaskDownBtn.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
@@ -2314,7 +2432,6 @@
         statusSelect.appendChild(option);
       });
       statusSelect.value = currentStatus;
-      statusSelect.disabled = !editable;
       statusSelect.addEventListener('change', event => intents.onStatusChange?.({
         task, item, value: statusSelect.value, event
       }));
@@ -2330,7 +2447,6 @@
         prioritySelect.appendChild(option);
       });
       prioritySelect.value = ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium';
-      prioritySelect.disabled = !editable;
       prioritySelect.addEventListener('change', event => intents.onPriorityChange?.({
         task,
         item,
@@ -2359,7 +2475,6 @@
       titleInput.value = task.title;
       titleInput.rows = 1;
       titleInput.placeholder = 'ToDo title';
-      titleInput.disabled = !editable;
       titleInput.dataset.previousValue = task.title;
       const markdownPreview = document.createElement('div');
       markdownPreview.className = 'inline-title-input markdown-preview';
@@ -2568,7 +2683,6 @@
       notesInput.value = task.notes || '';
       notesInput.rows = 1;
       notesInput.placeholder = 'Notes';
-      notesInput.disabled = !editable;
       notesInput.setAttribute('aria-label', 'Notes');
       notesInput.addEventListener('focus', () => {
         notesInput.dataset.previousValue = notesInput.value;
@@ -2607,7 +2721,6 @@
       dueInput.type = 'date';
       dueInput.className = 'editor-date-input';
       dueInput.value = task.dueDate || '';
-      dueInput.disabled = !editable;
       dueInput.addEventListener('change', event => intents.onDueDateChange?.({
         task,
         item,
@@ -2623,7 +2736,6 @@
       deleteBtn.className = 'btn-danger mini editor-delete-btn';
       deleteBtn.textContent = 'Delete';
       deleteBtn.title = 'Delete ToDo';
-      deleteBtn.disabled = !editable;
       deleteBtn.addEventListener('click', event => intents.onDelete?.({ task, item, event }));
       actions.appendChild(deleteBtn);
       subrow.append(side, actions);
@@ -2639,7 +2751,7 @@
       meta.append(created, status);
       if (task.dueDate) {
         const due = document.createElement('span');
-        due.className = 'editor-meta-tag';
+        due.className = 'editor-meta-tag task-due-tag';
         const dueText = relativeInfo(task.dueDate);
         due.textContent = dueText ? `Due: ${formatDate(task.dueDate)} - ${dueText}` : `Due: ${formatDate(task.dueDate)}`;
         meta.appendChild(due);
@@ -2654,21 +2766,120 @@
         body.append(titleInput, markdownPreview, subrow, meta);
       }
 
+      item.updateTask = next => {
+        task = next.task;
+        editable = next.editable;
+        taskReorderEnabled = next.taskReorderEnabled;
+        taskIndex = next.taskIndex;
+        taskCount = next.taskCount;
+        const nextStatus = normalizeTaskStatus(task.status, task.done);
+        item.classList.toggle('done', nextStatus === 'done');
+        // Avoid assigning unchanged values: native controls retain cursor/selection.
+        for (const [input, value] of [[titleInput, task.title], [notesInput, task.notes || ''],
+          [statusSelect, nextStatus], [prioritySelect, normalizePriority(task.priority)], [dueInput, task.dueDate || '']]) {
+          input.disabled = !editable;
+          if (document.activeElement !== input && input.value !== value) {
+            input.value = value;
+            if (input === titleInput || input === notesInput) autoResizeTextarea(input);
+          }
+        }
+        deleteBtn.disabled = !editable;
+        dragHandle.draggable = taskReorderEnabled;
+        dragHandle.title = taskReorderEnabled ? 'Drag to reorder' : 'Sorting is only available without search and filters';
+        dragHandle.setAttribute('aria-label', 'Reorder ToDo ' + task.title + ' with drag and drop');
+        moveTaskUpBtn.title = taskReorderEnabled ? 'Move ToDo up' : 'Sorting is only available without search and filters';
+        moveTaskDownBtn.title = taskReorderEnabled ? 'Move ToDo down' : 'Sorting is only available without search and filters';
+        moveTaskUpBtn.setAttribute('aria-label', 'Move ToDo ' + task.title + ' up');
+        moveTaskDownBtn.setAttribute('aria-label', 'Move ToDo ' + task.title + ' down');
+        moveTaskUpBtn.disabled = !taskReorderEnabled || taskIndex <= 0;
+        moveTaskDownBtn.disabled = !taskReorderEnabled || taskIndex >= taskCount - 1;
+        markdownPreview.tabIndex = editable ? 0 : -1;
+        status.textContent = taskStatusOptions().find(option => option.value === nextStatus).label;
+        if (task.notes && !notesInput.parentNode) body.insertBefore(notesInput, subrow);
+        let due = meta.querySelector('.task-due-tag');
+        if (task.dueDate) {
+          if (!due) {
+            due = document.createElement('span');
+            due.className = 'editor-meta-tag task-due-tag';
+            meta.appendChild(due);
+          }
+          const dueText = relativeInfo(task.dueDate);
+          due.textContent = 'Due: ' + formatDate(task.dueDate) + (dueText ? ' - ' + dueText : '');
+        } else if (due) {
+          due.remove();
+        }
+        updateMarkdownDisplay(document.activeElement === titleInput);
+      };
       item.append(dragWrap, controlStack, body);
+      item.updateTask({ task, editable, taskReorderEnabled, taskIndex, taskCount });
       return item;
     }
 
-    let pendingTaskFilterRefresh = false;
-
-    function refreshTaskFilterOnFocusOut(event) {
-      if (pendingTaskFilterRefresh && !els.taskList.contains(event.relatedTarget)) {
-        pendingTaskFilterRefresh = false;
-        renderTasks();
+    function applyTaskEdit({ projectId, taskId, field, value }) {
+      if (!isEditingEnabled()) return;
+      const project = state.projects.find(project => project.id === projectId);
+      const task = project?.tasks.find(task => task.id === taskId);
+      if (!task) return;
+      switch (field) {
+        case 'title':
+        case 'notes': break;
+        case 'priority': value = normalizePriority(value); break;
+        case 'dueDate': value = normalizeDateOnly(value); break;
+        case 'status': value = normalizeTaskStatus(value, task.done); break;
+        default: throw new Error('Unsupported task field: ' + field);
       }
+      if (task[field] === value) return;
+      task[field] = value;
+      if (field === 'status') task.done = value === 'done';
+      scheduleAutosave();
+      if (field === 'status') renderProjectList();
+      renderTasks();
+    }
+
+    async function applyTaskAction({ projectId, taskId, type, draggedTaskId: movedId, insertAfter }) {
+      if (!isEditingEnabled()) return;
+      const project = state.projects.find(project => project.id === projectId);
+      const task = project?.tasks.find(task => task.id === taskId);
+      if (!task) return;
+      const row = findRenderedTaskById(taskId);
+      const previousTop = row?.getBoundingClientRect().top;
+      let changed = false;
+      let focusSelector = '';
+      if (type === 'delete') {
+        if (!confirm('Delete ToDo "' + task.title + '"?')) return;
+        project.tasks = project.tasks.filter(candidate => candidate.id !== taskId);
+        changed = true;
+      } else if (type === 'move-up' || type === 'move-down') {
+        changed = moveTaskByStep(project, taskId, type === 'move-up' ? -1 : 1);
+        focusSelector = type === 'move-up' ? '.move-task-up-btn' : '.move-task-down-btn';
+      } else if (type === 'drop') {
+        clearDragIndicators();
+        changed = reorderProjectTasks(project, movedId, taskId, insertAfter);
+        draggedTaskId = null;
+      } else {
+        throw new Error('Unsupported task action: ' + type);
+      }
+      if (!changed) return;
+      // Explicit structural actions end the current interaction before moving rows.
+      if (els.taskList.contains(document.activeElement)) document.activeElement.blur();
+      const saving = persistAndRender({
+        restoreTaskId: type === 'delete' ? '' : taskId,
+        restoreTaskTop: previousTop, restoreFocusSelector: focusSelector
+      });
+      if (type === 'delete') els.taskTitle.focus({ preventScroll: true });
+      await saving;
+    }
+
+    function displayTaskListResult(result) {
+      const project = getSelectedProject();
+      els.visibleTaskCount.textContent = result.pending
+        ? result.visibleCount + ' visible - Filter update after editing'
+        : result.visibleCountText;
+      els.emptyState.classList.toggle('hidden', result.visibleCount > 0);
+      els.emptyState.textContent = project?.tasks.length ? 'No ToDos match the current filter.' : 'No ToDos yet for this project.';
     }
 
     function renderTasks() {
-      pendingTaskFilterRefresh = false;
       const project = getSelectedProject();
       const editable = isEditingEnabled();
       const reviewOnlyMode = canReviewUnsavedBrowserState();
@@ -2716,7 +2927,7 @@
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
         els.visibleTaskCount.textContent = '0 visible';
-        els.taskList.replaceChildren();
+        taskEditor.update({ project: null, query: {}, access: {} });
         els.emptyState.classList.remove('hidden');
         els.emptyState.textContent = hasBlockedUnsavedChanges
           ? (browserMode
@@ -2737,7 +2948,7 @@
         els.statOpen.textContent = '0';
         els.statDone.textContent = '0';
         els.visibleTaskCount.textContent = '0 visible';
-        els.taskList.replaceChildren();
+        taskEditor.update({ project: null, query: {}, access: {} });
         els.emptyState.classList.remove('hidden');
         els.emptyState.textContent = 'No projects yet.';
         return;
@@ -2752,176 +2963,11 @@
       els.statOpen.textContent = String(projectCounts.open);
       els.statDone.textContent = String(projectCounts.done);
 
-      const taskQuery = getCurrentTaskQueryState(project);
-      const filteredTasks = taskQuery.visibleTasks;
-      els.visibleTaskCount.textContent = taskQuery.visibleCountText;
-      els.taskList.replaceChildren();
-      const taskReorderEnabled = taskQuery.canReorder;
-
-      if (!project.tasks.length) {
-        els.emptyState.classList.remove('hidden');
-        els.emptyState.textContent = 'No ToDos yet for this project.';
-        return;
-      }
-
-      if (!filteredTasks.length) {
-        els.emptyState.classList.remove('hidden');
-        els.emptyState.textContent = 'No ToDos match the current filter.';
-        return;
-      }
-
-      els.emptyState.classList.add('hidden');
-
-      function deferFilterRefresh(event) {
-        const next = event.relatedTarget;
-        if (next && els.taskList.contains(next)) {
-          pendingTaskFilterRefresh = true;
-          return true;
-        }
-        return false;
-      }
-
-      filteredTasks.forEach(task => {
-        const item = buildTaskRow({
-          document,
-          task,
-          editable,
-          taskReorderEnabled,
-          taskIndex: project.tasks.findIndex(currentTask => currentTask.id === task.id),
-          taskCount: project.tasks.length,
-          markdownPreferences,
-          autoResizeTextarea,
-          clearDragIndicators,
-          formatDate,
-          normalizeDateTime,
-          relativeInfo,
-          normalizeDateOnly,
-          getDraggedTaskId() {
-            return draggedTaskId;
-          },
-          setDraggedTaskId(value) {
-            draggedTaskId = value;
-          },
-          intents: {
-            async onMoveUp({ task, item }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const taskTopBeforeMove = item.getBoundingClientRect().top;
-              if (moveTaskByStep(currentProject, task.id, -1)) {
-                await persistAndRender({
-                  restoreTaskId: task.id,
-                  restoreTaskTop: taskTopBeforeMove,
-                  restoreFocusSelector: '.move-task-up-btn'
-                });
-              }
-            },
-            async onMoveDown({ task, item }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const taskTopBeforeMove = item.getBoundingClientRect().top;
-              if (moveTaskByStep(currentProject, task.id, 1)) {
-                await persistAndRender({
-                  restoreTaskId: task.id,
-                  restoreTaskTop: taskTopBeforeMove,
-                  restoreFocusSelector: '.move-task-down-btn'
-                });
-              }
-            },
-            async onDrop({ task, draggedTaskId: movedTaskId, insertAfter }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              clearDragIndicators();
-              if (reorderProjectTasks(currentProject, movedTaskId, task.id, insertAfter)) {
-                draggedTaskId = null;
-                await persistAndRender();
-              }
-            },
-            async onStatusChange({ task, item, value }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-              if (!currentTask) return;
-              const taskTopBeforeChange = item.getBoundingClientRect().top;
-              currentTask.status = normalizeTaskStatus(value, currentTask.done);
-              currentTask.done = currentTask.status === 'done';
-              await persistAndRender({
-                restoreTaskId: task.id,
-                restoreTaskTop: taskTopBeforeChange,
-                restoreFocusSelector: '.status-select'
-              });
-            },
-            onPriorityChange({ task, value }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-              if (!currentTask) return;
-              currentTask.priority = value;
-              scheduleAutosave();
-              if (els.searchInput.value.trim()) {
-                renderTasks();
-              }
-            },
-            onTitleInput({ task, value }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-              if (!currentTask) return;
-              currentTask.title = value;
-              scheduleAutosave();
-            },
-            onTitleBlur({ task, input, value, previousValue, event }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-              if (!currentTask) return;
-              const cleanTitle = value.trim();
-              if (!cleanTitle) {
-                input.value = previousValue || currentTask.title || 'Untitled';
-              }
-              currentTask.title = input.value.trim();
-              input.value = currentTask.title;
-              autoResizeTextarea(input);
-              if (els.searchInput.value.trim() && input.value !== previousValue && !deferFilterRefresh(event)) {
-                renderTasks();
-              }
-              scheduleAutosave();
-            },
-            onNotesInput({ task, value }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-              if (!currentTask) return;
-              currentTask.notes = value;
-              scheduleAutosave();
-            },
-            onNotesBlur({ task, input, value, event }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-              if (!currentTask) return;
-              currentTask.notes = value;
-              input.value = currentTask.notes;
-              autoResizeTextarea(input);
-              if (els.searchInput.value.trim() && input.value !== input.dataset.previousValue && !deferFilterRefresh(event)) {
-                renderTasks();
-              }
-              scheduleAutosave();
-            },
-            onDueDateChange({ task, item, value }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              const currentTask = currentProject?.tasks.find(t => t.id === task.id);
-              if (!currentTask) return;
-              const taskTopBeforeDueDateChange = item.getBoundingClientRect().top;
-              currentTask.dueDate = value;
-              renderTasks();
-              restoreTaskViewportAnchor(task.id, taskTopBeforeDueDateChange, '.editor-date-input');
-              scheduleAutosave();
-            },
-            async onDelete({ task }) {
-              const currentProject = state.projects.find(p => p.id === project.id);
-              if (!currentProject) return;
-              const ok = confirm(`Delete ToDo "${task.title || 'Untitled'}"?`);
-              if (!ok) return;
-              currentProject.tasks = currentProject.tasks.filter(t => t.id !== task.id);
-              await persistAndRender();
-            }
-          }
-        });
-        els.taskList.appendChild(item);
+      taskEditor.update({
+        project,
+        query: { search: els.searchInput.value, filter: els.filterSelect.value },
+        access: { editable, reviewOnly: reviewOnlyMode }
       });
-
-      requestAnimationFrame(resizeRenderedNoteFields);
     }
 
     function render() {
@@ -2933,7 +2979,6 @@
       renderTasks();
       requestAnimationFrame(() => {
         autoResizeTextarea(els.taskTitle);
-        resizeRenderedNoteFields();
       });
     }
 
@@ -3688,7 +3733,6 @@
     });
     els.renameProjectBtn.addEventListener('click', renameProject);
     els.deleteProjectBtn.addEventListener('click', deleteProject);
-    els.taskList.addEventListener('focusout', refreshTaskFilterOnFocusOut);
     els.filterSelect.addEventListener('change', renderTasks);
     els.searchInput.addEventListener('input', renderTasks);
     els.exportBtn.addEventListener('click', exportBackup);
