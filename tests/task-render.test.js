@@ -88,7 +88,7 @@ class FakeElement {
     this.disabled = false;
     this.value = '';
     this.rows = 0;
-    this.textContent = '';
+    this._textContent = '';
     this.type = '';
     this.checked = false;
     this.draggable = false;
@@ -96,6 +96,10 @@ class FakeElement {
     this.placeholder = '';
     this.isConnected = true;
   }
+
+  set textContent(value) { this._textContent = value; this.children = []; }
+
+  get textContent() { return this._textContent; }
 
   append(...nodes) {
     nodes.forEach(node => this.appendChild(node));
@@ -314,7 +318,7 @@ test('Markdown preview defaults on, can be toggled, and leaves the source editab
   assert.equal(preview.querySelector('strong').textContent, 'Bold');
   assert.equal(preview.querySelector('code').textContent, 'code');
   assert.equal(input.value, task.title);
-  const initialBlockCount = preview.children.length;
+  const initialBlock = preview.children[0];
 
   checkbox.checked = false;
   checkbox.dispatchEvent({ type: 'change' });
@@ -324,7 +328,7 @@ test('Markdown preview defaults on, can be toggled, and leaves the source editab
 
   checkbox.checked = true;
   checkbox.dispatchEvent({ type: 'change' });
-  assert.equal(preview.children.length, initialBlockCount);
+  assert.equal(preview.children[0], initialBlock);
   preview.dispatchEvent({ type: 'click', target: { closest: () => null } });
   assert.equal(input.classList.contains('hidden'), false);
   input.value = 'plain text';

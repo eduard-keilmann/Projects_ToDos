@@ -807,6 +807,10 @@
         padding: 16px;
       }
 
+      .editor-task { grid-template-columns: 64px minmax(0, 1fr); }
+      .editor-task .editor-control-stack { align-items: stretch; }
+      .editor-task .editor-body { grid-column: 1 / -1; }
+
       .title-block,
       .topbar {
         flex-direction: column;
@@ -950,11 +954,7 @@
         <select id="filterSelect" style="max-width: 220px;" aria-label="Task filter">
           <option value="all">All Tasks</option>
           <option value="not-done">Not Done</option>
-          <option value="open">Open</option>
-          <option value="in-progress">In Progress</option>
-          <option value="in-review">In Review</option>
-          <option value="awaiting-acceptance">Awaiting Acceptance</option>
-          <option value="done">Done</option>
+
         </select>
         <input id="searchInput" type="text" placeholder="Search ToDos" style="max-width: 280px;" aria-label="Search ToDos" />
         <div class="spacer"></div>
@@ -2205,8 +2205,9 @@
         intents = {}
       } = options;
 
+      const currentStatus = normalizeTaskStatus(task.status, task.done);
       const item = document.createElement('div');
-      item.className = 'editor-task' + (task.done ? ' done' : '');
+      item.className = 'editor-task' + (currentStatus === 'done' ? ' done' : '');
       item.dataset.taskId = task.id;
 
       const dragWrap = document.createElement('div');
@@ -2312,7 +2313,7 @@
         option.textContent = status.label;
         statusSelect.appendChild(option);
       });
-      statusSelect.value = normalizeTaskStatus(task.status, task.done);
+      statusSelect.value = currentStatus;
       statusSelect.disabled = !editable;
       statusSelect.addEventListener('change', event => intents.onStatusChange?.({
         task, item, value: statusSelect.value, event
@@ -2485,7 +2486,7 @@
                 const bold = token.startsWith('**') || token.startsWith('__');
                 const element = document.createElement(link ? 'a' : bold ? 'strong' : token.startsWith('`') ? 'code' : 'em');
                 const text = link ? link[1] : token.slice(bold ? 2 : 1, bold ? -2 : -1);
-                element.textContent = text.replace(/\\([\\`*_\[\]])/g, '$1');
+                element.textContent = element.tagName.toLowerCase() === 'code' ? text : text.replace(/\\([\\`*_\[\]])/g, '$1');
                 if (link) {
                   element.href = link[2];
                   element.target = '_blank';
@@ -2636,7 +2637,7 @@
       created.textContent = `Created: ${formatDate(normalizeDateTime(task.createdAt).slice(0, 10)) || '-'}`;
       const status = document.createElement('span');
       status.className = 'editor-meta-tag';
-      status.textContent = taskStatusOptions().find(option => option.value === normalizeTaskStatus(task.status, task.done)).label;
+      status.textContent = taskStatusOptions().find(option => option.value === currentStatus).label;
       meta.append(created, status);
       if (task.dueDate) {
         const due = document.createElement('span');
@@ -2828,7 +2829,17 @@
             onSelectBlur({ event }) {
               if (pendingFilterRefresh && !deferFilterRefresh(event)) {
                 pendingFilterRefresh = false;
-                renderTasks();
+                const next = event.relatedTarget;
+                if (next && els.taskList.contains(next)) {
+                  const refreshWhenLeaving = blurEvent => {
+                    if (blurEvent.relatedTarget && els.taskList.contains(blurEvent.relatedTarget)) return;
+                    els.taskList.removeEventListener('focusout', refreshWhenLeaving);
+                    renderTasks();
+                  };
+                  els.taskList.addEventListener('focusout', refreshWhenLeaving);
+                } else {
+                  renderTasks();
+                }
               }
             },
             async onStatusChange({ task, item, value }) {
@@ -3740,6 +3751,13 @@
     }
 
     async function init() {
+      taskStatusOptions().forEach(status => {
+      const option = document.createElement('option');
+      option.value = status.value;
+      option.textContent = status.label;
+      els.filterSelect.appendChild(option);
+    });
+
       updateDraftCreatedAt();
       autoResizeTextarea(els.taskTitle);
       setInitialStorageStatus();
