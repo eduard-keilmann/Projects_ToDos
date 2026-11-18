@@ -132,3 +132,13 @@ Most codec tests require only the existing JavaScript test runner and controlled
 7. Run codec round-trip and repair tests, then relevant persistence/integration checks. Remove only tests whose behavior is already protected by replacements.
 
 Do not turn this work into a generic validator, recursive schema interpreter, migration registry, or unrelated storage rewrite. The intended improvement is one maintainable persisted-data contract with a small interface.
+
+## Implementation and compatibility notes
+
+- [x] Decode known fields and track repairs in one pass, including title and date corrections.
+- [x] Encode a detached version-6 snapshot and derive compatibility done from a valid status.
+- [x] Route file, browser, import, export and save paths through the codec.
+- [x] Cover codec round trips, compatibility policies, and persistence integration; retain lifecycle and failure tests.
+- [x] Share the app marker and version with output, rewrite decisions and migration messages.
+
+Compatibility characterization: unknown fields and the application marker are ignored during decoding and do not independently request a rewrite. A version other than 6, including an unrecognized future version, remains accepted when its data shape is supported and requests rewriting. An invalid or missing savedAt becomes empty metadata without independently requesting a rewrite; it is never used as a fallback creation timestamp. Invalid root values are rejected before state activation.

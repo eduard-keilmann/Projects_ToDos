@@ -17,6 +17,7 @@ function loadStatusFunctions() {
   const script = scriptMatch[1];
   const context = {
     DATA_FILE_NAME: 'project-todos.json',
+    codec: { format: { version: 6 } },
     Date,
     Intl,
     module: { exports: {} }
