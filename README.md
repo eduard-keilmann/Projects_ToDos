@@ -42,9 +42,9 @@ The main UI is intentionally direct. Most fields are edited inline in the task l
 
 The app supports two storage modes.
 
-### Chrome / Opera mode
+### Chrome / Chromium mode
 
-Current Chrome and Opera use direct file mode:
+Current Chrome and Chromium use direct file mode:
 
 - click `Connect Folder`
 - choose the folder for `project-todos.json`
@@ -60,12 +60,12 @@ Safari uses browser-storage mode:
 - JSON is used through `Download Backup` and `Import Backup`
 - Safari does not continuously write back into an arbitrary local folder
 
-Chrome and Opera stay file-based. Safari stays browser-based.
+Chrome and Chromium stay file-based. Safari stays browser-based.
 Other non-Safari browsers without File System Access support are not a target mode for this app.
 
 ## How To Run
 
-### In Chrome or Opera
+### In Chrome or Chromium
 
 1. Open `project_todo_tool.html`.
 2. Click `Connect Folder`.
@@ -83,7 +83,7 @@ The app has no backend.
 
 ### File mode
 
-In Chrome and Opera:
+In Chrome and Chromium:
 
 - data is written directly to `project-todos.json`
 - changes are autosaved after edits
@@ -186,7 +186,7 @@ Task reordering is disabled while search or filtering is active, because the vis
 
 ### Download / Export
 
-- Chrome / Opera: `Export Backup`
+- Chrome / Chromium: `Export Backup`
 - Safari: `Download Backup`
 
 Both actions download a JSON payload backup.
@@ -247,7 +247,7 @@ If you change the app, keep these constraints in mind:
 - preserve single-file behavior
 - avoid new dependencies unless they are truly needed
 - keep compatibility with existing `project-todos.json` backups
-- keep Chrome/Opera file mode stable while changing Safari mode
+- keep Chrome/Chromium file mode stable while changing Safari mode
 
 Run `node --test tests/*.test.js` to execute the tests. The supported browser targets are Chrome/Chromium and Safari. Set `MARKDOWN_TEST_BROWSER` to a Chrome or Chromium executable to run the automated Markdown browser test. The test is skipped if the variable is unset or the executable is unavailable. Safari is not covered by this automated test and requires a separate browser check.
 

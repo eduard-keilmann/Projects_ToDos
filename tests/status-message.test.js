@@ -61,8 +61,8 @@ test('buildStorageStatus returns correct initial statuses for unsupported, brows
   assert.deepEqual(toPlainJson(buildStorageStatus('initial-unsupported-browser')), {
     kind: 'err',
     title: 'Browser Not Supported',
-    textParts: ['This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari.'],
-    meta: 'Please use current Chrome, Opera, or Safari.'
+    textParts: ['This app supports direct file mode in current Chrome or Chromium, and browser-storage mode in Safari.'],
+    meta: 'Please use current Chrome, Chromium, or Safari.'
   });
 
   assert.deepEqual(toPlainJson(buildStorageStatus('initial-browser-storage')), {

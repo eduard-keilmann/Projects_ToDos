@@ -111,7 +111,7 @@ test('buildStorageMode returns unsupported mode capabilities and labels', () => 
     appStorageHint: 'This browser is outside the supported storage modes for this app.',
     storageCardHeading: 'Browser Support',
     showStorageActionRow: false,
-    storageFootnote: 'Use current Chrome or Opera for direct file mode, or Safari for browser-storage mode.',
+    storageFootnote: 'Use current Chrome or Chromium for direct file mode, or Safari for browser-storage mode.',
     exportButtonLabel: 'Export Backup',
     extrasFootnote: 'This app does not enable local data editing in unsupported browsers.'
   });

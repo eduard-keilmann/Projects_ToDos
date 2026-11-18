@@ -1124,7 +1124,7 @@
         appStorageHint: 'This browser is outside the supported storage modes for this app.',
         storageCardHeading: 'Browser Support',
         showStorageActionRow: false,
-        storageFootnote: 'Use current Chrome or Opera for direct file mode, or Safari for browser-storage mode.',
+        storageFootnote: 'Use current Chrome or Chromium for direct file mode, or Safari for browser-storage mode.',
         exportButtonLabel: 'Export Backup',
         extrasFootnote: 'This app does not enable local data editing in unsupported browsers.'
       };
@@ -1314,8 +1314,8 @@
           return {
             kind: 'err',
             title: 'Browser Not Supported',
-            textParts: ['This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari.'],
-            meta: 'Please use current Chrome, Opera, or Safari.'
+            textParts: ['This app supports direct file mode in current Chrome or Chromium, and browser-storage mode in Safari.'],
+            meta: 'Please use current Chrome, Chromium, or Safari.'
           };
         case 'initial-browser-storage':
           return {
@@ -2600,7 +2600,7 @@
             ? 'Unsaved changes remain in this tab. Browser storage must work again before editing can continue.'
             : 'Unsaved changes remain in the browser. Restore access to write them to the file.')
           : (unsupportedBrowser
-            ? 'Use current Chrome, Opera, or Safari.'
+            ? 'Use current Chrome, Chromium, or Safari.'
             : (browserMode ? 'Browser storage is not ready yet.' : 'Connect a folder to the data file first.'));
         return;
       }
@@ -3494,12 +3494,12 @@
       els.compatibilityBanner.classList.add('hidden');
       if (getStorageMode().isSupported) return;
       els.compatibilityBanner.classList.remove('hidden');
-      els.compatibilityBanner.textContent = 'This app supports direct file mode in current Chrome or Opera, and browser-storage mode in Safari. This browser is outside those supported modes.';
+      els.compatibilityBanner.textContent = 'This app supports direct file mode in current Chrome or Chromium, and browser-storage mode in Safari. This browser is outside those supported modes.';
       setStatus(
         'err',
         'Browser Not Supported',
-        'This browser is outside the supported Chrome/Opera file mode and Safari browser-storage mode.',
-        'Please use current Chrome, Opera, or Safari.'
+        'This browser is outside the supported Chrome/Chromium file mode and Safari browser-storage mode.',
+        'Please use current Chrome, Chromium, or Safari.'
       );
     }
 
