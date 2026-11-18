@@ -66,3 +66,28 @@ test('search refresh waits until the task dropdown loses focus', () => {
   intents.onSelectBlur({ event: { relatedTarget: null } });
   assert.equal(renders, 2);
 });
+
+
+test('delayed focus restoration does not override a later user focus change', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'project_todo_tool.html'), 'utf8');
+  const start = html.indexOf('    function restoreTaskViewportAnchor(');
+  const end = html.indexOf('\n    function reorderProjects(', start);
+  assert.ok(start >= 0 && end > start);
+  let frame;
+  let focusCalls = 0;
+  let scrollCalls = 0;
+  const document = { activeElement: {} };
+  const row = { querySelector: () => ({ focus() { focusCalls++; } }), getBoundingClientRect: () => ({ top: 120 }) };
+  const context = { document, requestAnimationFrame(callback) { frame = callback; },
+    findRenderedTaskById: () => row, window: { scrollBy() { scrollCalls++; } } };
+  vm.runInNewContext(html.slice(start, end) + '\nthis.restoreTaskViewportAnchor = restoreTaskViewportAnchor;', context);
+  context.restoreTaskViewportAnchor('task', 100, '.status-select');
+  document.activeElement = {};
+  frame();
+  assert.equal(focusCalls, 0);
+  assert.equal(scrollCalls, 0);
+  context.restoreTaskViewportAnchor('task', 100, '.status-select');
+  frame();
+  assert.equal(focusCalls, 1);
+  assert.equal(scrollCalls, 1);
+});

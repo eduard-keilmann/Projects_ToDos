@@ -2123,7 +2123,9 @@
 
     function restoreTaskViewportAnchor(taskId, previousTop, focusSelector = '') {
       if (!taskId || typeof previousTop !== 'number') return;
+      const activeElement = document.activeElement;
       requestAnimationFrame(() => {
+        if (document.activeElement !== activeElement) return;
         const taskElement = findRenderedTaskById(taskId);
         if (!taskElement) return;
         if (focusSelector) {
