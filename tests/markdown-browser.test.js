@@ -53,6 +53,15 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
       checkbox.checked = false;
       checkbox.dispatchEvent(new Event('change'));
       if (input.scrollHeight > input.clientHeight + 1) throw Error('Editor is clipped: ' + input.scrollHeight + '/' + input.clientHeight + ' height ' + input.style.height);
+      const numberedRow = buildTaskRow({
+        ...options,
+        task: { ...options.task, id: 'numbered', title: 'Es fehlen Schritte:\n\n1. **Erster.** Text\n\n2. **Zweiter.** Text\n\n3. **Dritter.** Text\n\n4. **Vierter.** Text\n\n5. **Fünfter.** Text' }
+      });
+      document.body.appendChild(numberedRow);
+      const numberedLists = [...numberedRow.querySelectorAll('.markdown-preview ol')];
+      if (numberedLists.length !== 5 || numberedLists.some((list, index) => list.start !== index + 1 || list.children.length !== 1)) {
+        throw Error('List numbering is incorrect');
+      }
       const spacer = document.createElement('div');
       spacer.style.height = '1200px';
       document.body.appendChild(spacer);
