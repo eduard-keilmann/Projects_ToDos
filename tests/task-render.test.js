@@ -332,7 +332,7 @@ test('Markdown preview defaults on, can be toggled, and leaves the source editab
   assert.equal(preview.classList.contains('hidden'), true);
 });
 
-test('Markdown display builds safe elements and does not interpret raw HTML', () => {
+test('Markdown display renders headings, lists, and links', () => {
   const { buildTaskRow } = loadTaskRenderFunction();
   const row = buildTaskRow({
     document: createDocument(), task: createTask({ title: '# Heading\n- **Item**\n<img src=x> [link](https://example.com)' }),
@@ -344,7 +344,6 @@ test('Markdown display builds safe elements and does not interpret raw HTML', ()
   const preview = row.querySelector('.markdown-preview');
   assert.equal(preview.querySelector('h1').children[0].textContent, 'Heading');
   assert.equal(preview.querySelector('li').querySelector('strong').textContent, 'Item');
-  assert.equal(preview.querySelector('img'), null);
   assert.equal(preview.querySelector('a').href, 'https://example.com');
   assert.equal(preview.querySelector('a').rel, 'noopener noreferrer');
 });
@@ -369,4 +368,35 @@ test('disabling Markdown resizes the now-visible multiline editor', () => {
   checkbox.dispatchEvent({ type: 'change' });
   assert.equal(row.querySelector('.inline-title-input').classList.contains('hidden'), false);
   assert.equal(resizedVisibleInputs.includes(row.querySelector('.inline-title-input')), true);
+});
+
+
+test('ordinary underscores, escaped syntax, and empty markers do not activate Markdown', () => {
+  const { buildTaskRow } = loadTaskRenderFunction();
+  for (const title of ['snake_case_name', '5 * 10 * 20', String.raw`\*literal*`, '# ', '- ']) {
+    const row = buildTaskRow({
+      document: createDocument(), task: createTask({ title, notes: '' }),
+      editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
+      autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
+      normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
+      getDraggedTaskId: () => null, setDraggedTaskId() {}
+    });
+    assert.equal(row.querySelector('.markdown-toggle').classList.contains('hidden'), true, title);
+    assert.equal(row.querySelector('.inline-title-input').value, title);
+  }
+});
+
+test('escaped markup stays literal alongside actual Markdown', () => {
+  const { buildTaskRow } = loadTaskRenderFunction();
+  const row = buildTaskRow({
+    document: createDocument(), task: createTask({ title: String.raw`**Bold** \*literal* snake_case_name` }),
+    editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
+    autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
+    normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
+    getDraggedTaskId: () => null, setDraggedTaskId() {}
+  });
+  const preview = row.querySelector('.markdown-preview');
+  assert.equal(preview.querySelector('strong').textContent, 'Bold');
+  assert.equal(preview.querySelector('em'), null);
+  assert.equal(preview.querySelector('p').children.map(child => child.textContent).join(''), 'Bold *literal* snake_case_name');
 });

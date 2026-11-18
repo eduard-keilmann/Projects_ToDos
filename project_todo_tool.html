@@ -2026,7 +2026,7 @@
       if (!textarea) return;
       const resize = () => {
         textarea.style.height = '0px';
-        textarea.style.height = `${textarea.scrollHeight}px`;
+        textarea.style.height = `${textarea.scrollHeight + textarea.offsetHeight - textarea.clientHeight}px`;
       };
       resize();
       if (textarea.isConnected) {
@@ -2345,39 +2345,57 @@
       markdownPreview.tabIndex = editable ? 0 : -1;
 
       function updateMarkdownDisplay(editing = false) {
-        const text = titleInput.value;
-        const inlinePattern = /(\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))/g;
-        const hasMarkdown = /(^|\n)\s{0,3}(#{1,3}\s+|[-*+]\s+|\d+\.\s+|>\s+)|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)/.test(text);
-        markdownLabel.classList.toggle('hidden', !hasMarkdown);
-        const showPreview = hasMarkdown && markdownCheckbox.checked && !editing;
-        titleInput.classList.toggle('hidden', showPreview);
-        markdownPreview.classList.toggle('hidden', !showPreview);
-        if (!showPreview) return;
-
+        const inlinePattern = /\\[\\`*_\[\]]|\*\*(?:\\.|[^*\\\n])+\*\*|__(?:\\.|[^_\\\n])+__|\*(?:\\.|[^*\\\n])+\*|_(?:\\.|[^_\\\n])+_|`(?:\\.|[^`\\\n])+`|\[(?:\\.|[^\]\\\n])+\]\(https?:\/\/[^\s)]+\)/g;
+        let hasMarkdown = false;
         markdownPreview.textContent = '';
         let list = null;
-        text.split('\n').forEach(line => {
-          const heading = line.match(/^\s{0,3}(#{1,3})\s+(.+)$/);
-          const listItem = line.match(/^\s{0,3}([-*+]|\d+\.)\s+(.+)$/);
-          const quote = line.match(/^\s{0,3}>\s+(.+)$/);
+
+        titleInput.value.split('\n').forEach(line => {
+          const heading = line.match(/^ {0,3}(#{1,3})[ \t]+(.+)$/);
+          const listItem = line.match(/^ {0,3}([-*+]|\d+\.)[ \t]+(.+)$/);
+          const quote = line.match(/^ {0,3}>[ \t]+(.+)$/);
+          if (heading || listItem || quote) hasMarkdown = true;
           const listType = listItem && (/^\d/.test(listItem[1]) ? 'ol' : 'ul');
           if (!listItem || !list || list.tagName.toLowerCase() !== listType) {
             list = listItem ? document.createElement(listType) : null;
-            if (list) markdownPreview.appendChild(list);
+            if (list) {
+              if (listType === 'ol') list.start = Number.parseInt(listItem[1], 10);
+              markdownPreview.appendChild(list);
+            }
           }
           const block = document.createElement(heading ? 'h' + heading[1].length : listItem ? 'li' : quote ? 'blockquote' : 'p');
           const content = heading ? heading[2] : listItem ? listItem[2] : quote ? quote[1] : line;
           let lastIndex = 0;
           for (const match of content.matchAll(inlinePattern)) {
+            const token = match[0];
+            const beforeChar = content[match.index - 1] || '';
+            const afterChar = content[match.index + token.length] || '';
+            const emphasis = token.startsWith('*') || token.startsWith('_');
+            const delimiterLength = token.startsWith('**') || token.startsWith('__') ? 2 : 1;
+            const innerText = token.slice(delimiterLength, -delimiterLength);
+            if (emphasis && (!innerText || innerText !== innerText.trim())) continue;
+            if (token.startsWith('_') && (/[\p{L}\p{N}_]/u.test(beforeChar) || /[\p{L}\p{N}_]/u.test(afterChar))) continue;
             const before = document.createElement('span');
             before.textContent = content.slice(lastIndex, match.index);
             block.appendChild(before);
-            const token = match[0];
-            const link = token.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
-            const element = document.createElement(link ? 'a' : token.startsWith('**') || token.startsWith('__') ? 'strong' : token.startsWith('`') ? 'code' : 'em');
-            element.textContent = link ? link[1] : token.slice(token.startsWith('**') || token.startsWith('__') ? 2 : 1, token.startsWith('**') || token.startsWith('__') ? -2 : -1);
-            if (link) { element.href = link[2]; element.target = '_blank'; element.rel = 'noopener noreferrer'; }
-            block.appendChild(element);
+            if (token.startsWith('\\')) {
+              const escaped = document.createElement('span');
+              escaped.textContent = token.slice(1);
+              block.appendChild(escaped);
+            } else {
+              hasMarkdown = true;
+              const link = token.match(/^\[((?:\\.|[^\]\\])+)\]\((https?:\/\/[^\s)]+)\)$/);
+              const bold = token.startsWith('**') || token.startsWith('__');
+              const element = document.createElement(link ? 'a' : bold ? 'strong' : token.startsWith('`') ? 'code' : 'em');
+              const text = link ? link[1] : token.slice(bold ? 2 : 1, bold ? -2 : -1);
+              element.textContent = text.replace(/\\([\\`*_\[\]])/g, '$1');
+              if (link) {
+                element.href = link[2];
+                element.target = '_blank';
+                element.rel = 'noopener noreferrer';
+              }
+              block.appendChild(element);
+            }
             lastIndex = match.index + token.length;
           }
           const rest = document.createElement('span');
@@ -2385,6 +2403,11 @@
           block.appendChild(rest);
           (list || markdownPreview).appendChild(block);
         });
+
+        markdownLabel.classList.toggle('hidden', !hasMarkdown);
+        const showPreview = hasMarkdown && markdownCheckbox.checked && !editing;
+        titleInput.classList.toggle('hidden', showPreview);
+        markdownPreview.classList.toggle('hidden', !showPreview);
       }
       markdownCheckbox.addEventListener('change', () => {
         markdownPreferences.set(task, markdownCheckbox.checked);
