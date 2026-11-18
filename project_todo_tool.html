@@ -2318,6 +2318,165 @@
       return reorderModule.moveByStep(project.tasks, task => task.id, taskId, direction);
     }
 
+
+    // Markdown is derived data: the parser never reads the DOM or task state.
+    function createMarkdownModule() {
+      const inlinePattern = /\\[\\`*_\[\]]|\*\*(?:\\.|[^*\\\n])+\*\*|__(?:\\.|[^_\\\n])+__|\*(?:\\.|[^*\\\n])+\*|_(?:\\.|[^_\\\n])+_|`(?:\\.|[^`\\\n])+`|\[(?:\\.|[^\]\\\n])+\]\(https?:\/\/[^\s)]+\)/g;
+      const languages = { python: 'python', py: 'python', bash: 'shell', sh: 'shell', shell: 'shell', c: 'c', cpp: 'c', 'c++': 'c' };
+      const keywords = {
+        python: /^(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|False|finally|for|from|global|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|True|try|while|with|yield)$/,
+        shell: /^(?:if|then|else|elif|fi|for|while|do|done|case|esac|in|function|return|local|export|readonly|unset|break|continue)$/,
+        c: /^(?:auto|bool|break|case|char|class|const|constexpr|continue|default|delete|do|double|else|enum|extern|false|float|for|if|inline|int|long|namespace|new|nullptr|private|protected|public|return|short|signed|sizeof|static|struct|switch|template|this|true|typedef|union|unsigned|using|void|volatile|while)$/
+      };
+
+      function codeSegments(text, tag) {
+        const language = Object.prototype.hasOwnProperty.call(languages, tag) ? languages[tag] : null;
+        if (!language) return [{ type: 'text', text }];
+        const tokens = language === 'c'
+          ? /\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_]\w*/g
+          : /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_]\w*/g;
+        const segments = [];
+        let position = 0;
+        for (const match of text.matchAll(tokens)) {
+          const token = match[0];
+          const type = token.startsWith('#') || token.startsWith('//') || token.startsWith('/*')
+            ? 'comment' : token.startsWith('"') || token.startsWith("'") ? 'string'
+            : keywords[language].test(token) ? 'keyword' : '';
+          if (!type) continue;
+          segments.push({ type: 'text', text: text.slice(position, match.index) }, { type, text: token });
+          position = match.index + token.length;
+        }
+        segments.push({ type: 'text', text: text.slice(position) });
+        return segments;
+      }
+
+      function parse(source) {
+        let hasMarkdown = false;
+        const blocks = [];
+        let list = null;
+        let fence = null;
+        function parseInline(content) {
+          const nodes = [];
+          let position = 0;
+          for (const match of content.matchAll(inlinePattern)) {
+            const token = match[0];
+            const before = content[match.index - 1] || '';
+            const after = content[match.index + token.length] || '';
+            const emphasis = token.startsWith('*') || token.startsWith('_');
+            const length = token.startsWith('**') || token.startsWith('__') ? 2 : 1;
+            const inner = token.slice(length, -length);
+            if (emphasis && (!inner || inner !== inner.trim())) continue;
+            if (token.startsWith('_') && (/[\p{L}\p{N}_]/u.test(before) || /[\p{L}\p{N}_]/u.test(after))) continue;
+            nodes.push({ type: 'text', text: content.slice(position, match.index) });
+            if (token.startsWith('\\')) {
+              nodes.push({ type: 'text', text: token.slice(1) });
+            } else {
+              hasMarkdown = true;
+              const link = token.match(/^\[((?:\\.|[^\]\\])+)\]\((https?:\/\/[^\s)]+)\)$/);
+              const type = link ? 'link' : length === 2 && emphasis ? 'strong' : token.startsWith('`') ? 'code' : 'em';
+              const text = link ? link[1] : token.slice(length, -length);
+              const node = { type, text: type === 'code' ? text : text.replace(/\\([\\`*_\[\]])/g, '$1') };
+              if (link) node.href = link[2];
+              nodes.push(node);
+            }
+            position = match.index + token.length;
+          }
+          nodes.push({ type: 'text', text: content.slice(position) || (content ? '' : '\u00a0') });
+          return nodes;
+        }
+        function finishFence() {
+          blocks.push({ type: 'codeblock', segments: codeSegments(fence.lines.join('\n'), fence.language) });
+          fence = null;
+        }
+        for (const line of source.split('\n')) {
+          if (fence) {
+            const closing = line.match(/^ {0,3}(`{3,})[ \t]*$/);
+            if (closing && closing[1].length >= fence.length) finishFence();
+            else fence.lines.push(line);
+            continue;
+          }
+          const opening = line.match(/^ {0,3}(`{3,})([^`]*)$/);
+          if (opening) {
+            hasMarkdown = true;
+            list = null;
+            fence = { length: opening[1].length, language: opening[2].trim().split(/\s+/)[0].toLowerCase(), lines: [] };
+            continue;
+          }
+          const heading = line.match(/^ {0,3}(#{1,3})[ \t]+(.+)$/);
+          const item = line.match(/^ {0,3}([-*+]|\d+\.)[ \t]+(.+)$/);
+          const quote = line.match(/^ {0,3}>[ \t]+(.+)$/);
+          if (heading || item || quote) hasMarkdown = true;
+          const listType = item && (/^\d/.test(item[1]) ? 'ol' : 'ul');
+          if (!item || !list || list.type !== listType) {
+            list = item ? { type: listType, items: [] } : null;
+            if (list) {
+              if (listType === 'ol') list.start = Number.parseInt(item[1], 10);
+              blocks.push(list);
+            }
+          }
+          const content = heading ? heading[2] : item ? item[2] : quote ? quote[1] : line;
+          const inline = parseInline(content);
+          if (item) list.items.push(inline);
+          else blocks.push({ type: heading ? 'heading' : quote ? 'quote' : 'paragraph', ...(heading ? { level: heading[1].length } : {}), inline });
+        }
+        if (fence) finishFence();
+        return { hasMarkdown, blocks };
+      }
+
+      function render(document, parsed) {
+        const fragment = document.createDocumentFragment();
+        function appendInline(parent, nodes) {
+          for (const node of nodes) {
+            const tags = { text: 'span', strong: 'strong', em: 'em', code: 'code', link: 'a' };
+            if (!Object.prototype.hasOwnProperty.call(tags, node.type)) throw new Error('Unknown Markdown inline node: ' + node.type);
+            const element = document.createElement(tags[node.type]);
+            element.textContent = node.text;
+            if (node.type === 'link') {
+              element.href = node.href;
+              element.target = '_blank';
+              element.rel = 'noopener noreferrer';
+            }
+            parent.appendChild(element);
+          }
+        }
+        for (const block of parsed.blocks) {
+          if (block.type === 'codeblock') {
+            const pre = document.createElement('pre');
+            const code = document.createElement('code');
+            for (const segment of block.segments) {
+              if (!['text', 'keyword', 'string', 'comment'].includes(segment.type)) throw new Error('Unknown Markdown code segment: ' + segment.type);
+              const span = document.createElement('span');
+              if (segment.type !== 'text') span.className = 'code-' + segment.type;
+              span.textContent = segment.text;
+              code.appendChild(span);
+            }
+            pre.appendChild(code);
+            fragment.appendChild(pre);
+          } else if (block.type === 'ol' || block.type === 'ul') {
+            const list = document.createElement(block.type);
+            if (block.type === 'ol') list.start = block.start;
+            for (const inline of block.items) {
+              const item = document.createElement('li');
+              appendInline(item, inline);
+              list.appendChild(item);
+            }
+            fragment.appendChild(list);
+          } else {
+            const tags = { paragraph: 'p', quote: 'blockquote' };
+            let tag = Object.prototype.hasOwnProperty.call(tags, block.type) ? tags[block.type] : null;
+            if (block.type === 'heading' && [1, 2, 3].includes(block.level)) tag = 'h' + block.level;
+            if (!tag) throw new Error('Unknown Markdown block: ' + block.type);
+            const element = document.createElement(tag);
+            appendInline(element, block.inline);
+            fragment.appendChild(element);
+          }
+        }
+        return fragment;
+      }
+      return { parse, render };
+    }
+    const markdown = createMarkdownModule();
+
     function buildTaskRow(options) {
       let {
         document,
@@ -2481,145 +2640,22 @@
       markdownPreview.setAttribute('aria-label', 'Edit ToDo title');
       markdownPreview.tabIndex = editable ? 0 : -1;
 
-      let renderedMarkdownText = null;
-      let hasMarkdown = false;
+      let parsedMarkdown = null;
+      let parsedMarkdownSource = null;
+      let previewDirty = true;
 
       function updateMarkdownDisplay(editing = false) {
-        const inlinePattern = /\\[\\`*_\[\]]|\*\*(?:\\.|[^*\\\n])+\*\*|__(?:\\.|[^_\\\n])+__|\*(?:\\.|[^*\\\n])+\*|_(?:\\.|[^_\\\n])+_|`(?:\\.|[^`\\\n])+`|\[(?:\\.|[^\]\\\n])+\]\(https?:\/\/[^\s)]+\)/g;
-        if (renderedMarkdownText !== titleInput.value) {
-          renderedMarkdownText = titleInput.value;
-          hasMarkdown = false;
-          markdownPreview.textContent = '';
-          let list = null;
-          let codeBlock = null;
-  
-          function finishCodeBlock() {
-            const text = codeBlock.lines.join('\n');
-            const languages = {
-              python: 'python', py: 'python', bash: 'shell', sh: 'shell', shell: 'shell',
-              c: 'c', cpp: 'c', 'c++': 'c'
-            };
-            const language = Object.prototype.hasOwnProperty.call(languages, codeBlock.language)
-              ? languages[codeBlock.language] : null;
-            if (!language) {
-              codeBlock.element.textContent = text;
-              return;
-            }
-            const keywords = {
-              python: /^(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|False|finally|for|from|global|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|True|try|while|with|yield)$/,
-              shell: /^(?:if|then|else|elif|fi|for|while|do|done|case|esac|in|function|return|local|export|readonly|unset|break|continue)$/,
-              c: /^(?:auto|bool|break|case|char|class|const|constexpr|continue|default|delete|do|double|else|enum|extern|false|float|for|if|inline|int|long|namespace|new|nullptr|private|protected|public|return|short|signed|sizeof|static|struct|switch|template|this|true|typedef|union|unsigned|using|void|volatile|while)$/
-            };
-            const tokens = language === 'c'
-              ? /\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_]\w*/g
-              : /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_]\w*/g;
-            let position = 0;
-            for (const match of text.matchAll(tokens)) {
-              const token = match[0];
-              const type = token.startsWith('#') || token.startsWith('//') || token.startsWith('/*')
-                ? 'comment' : token.startsWith('"') || token.startsWith("'") ? 'string'
-                : keywords[language].test(token) ? 'keyword' : '';
-              if (!type) continue;
-              const plain = document.createElement('span');
-              plain.textContent = text.slice(position, match.index);
-              codeBlock.element.appendChild(plain);
-              const highlighted = document.createElement('span');
-              highlighted.className = 'code-' + type;
-              highlighted.textContent = token;
-              codeBlock.element.appendChild(highlighted);
-              position = match.index + token.length;
-            }
-            const remainder = document.createElement('span');
-            remainder.textContent = text.slice(position);
-            codeBlock.element.appendChild(remainder);
-          }
-  
-          titleInput.value.split('\n').forEach(line => {
-            if (codeBlock) {
-              const closing = line.match(/^ {0,3}(`{3,})[ \t]*$/);
-              if (closing && closing[1].length >= codeBlock.fenceLength) {
-                finishCodeBlock();
-                codeBlock = null;
-              } else {
-                codeBlock.lines.push(line);
-              }
-              return;
-            }
-            const opening = line.match(/^ {0,3}(`{3,})([^`]*)$/);
-            if (opening) {
-              hasMarkdown = true;
-              list = null;
-              const pre = document.createElement('pre');
-              const code = document.createElement('code');
-              pre.appendChild(code);
-              markdownPreview.appendChild(pre);
-              codeBlock = {
-                element: code,
-                fenceLength: opening[1].length,
-                language: opening[2].trim().split(/\s+/)[0].toLowerCase(),
-                lines: []
-              };
-              return;
-            }
-  
-            const heading = line.match(/^ {0,3}(#{1,3})[ \t]+(.+)$/);
-            const listItem = line.match(/^ {0,3}([-*+]|\d+\.)[ \t]+(.+)$/);
-            const quote = line.match(/^ {0,3}>[ \t]+(.+)$/);
-            if (heading || listItem || quote) hasMarkdown = true;
-            const listType = listItem && (/^\d/.test(listItem[1]) ? 'ol' : 'ul');
-            if (!listItem || !list || list.tagName.toLowerCase() !== listType) {
-              list = listItem ? document.createElement(listType) : null;
-              if (list) {
-                if (listType === 'ol') list.start = Number.parseInt(listItem[1], 10);
-                markdownPreview.appendChild(list);
-              }
-            }
-            const block = document.createElement(heading ? 'h' + heading[1].length : listItem ? 'li' : quote ? 'blockquote' : 'p');
-            const content = heading ? heading[2] : listItem ? listItem[2] : quote ? quote[1] : line;
-            let lastIndex = 0;
-            for (const match of content.matchAll(inlinePattern)) {
-              const token = match[0];
-              const beforeChar = content[match.index - 1] || '';
-              const afterChar = content[match.index + token.length] || '';
-              const emphasis = token.startsWith('*') || token.startsWith('_');
-              const delimiterLength = token.startsWith('**') || token.startsWith('__') ? 2 : 1;
-              const innerText = token.slice(delimiterLength, -delimiterLength);
-              if (emphasis && (!innerText || innerText !== innerText.trim())) continue;
-              if (token.startsWith('_') && (/[\p{L}\p{N}_]/u.test(beforeChar) || /[\p{L}\p{N}_]/u.test(afterChar))) continue;
-              const before = document.createElement('span');
-              before.textContent = content.slice(lastIndex, match.index);
-              block.appendChild(before);
-              if (token.startsWith('\\')) {
-                const escaped = document.createElement('span');
-                escaped.textContent = token.slice(1);
-                block.appendChild(escaped);
-              } else {
-                hasMarkdown = true;
-                const link = token.match(/^\[((?:\\.|[^\]\\])+)\]\((https?:\/\/[^\s)]+)\)$/);
-                const bold = token.startsWith('**') || token.startsWith('__');
-                const element = document.createElement(link ? 'a' : bold ? 'strong' : token.startsWith('`') ? 'code' : 'em');
-                const text = link ? link[1] : token.slice(bold ? 2 : 1, bold ? -2 : -1);
-                element.textContent = element.tagName.toLowerCase() === 'code' ? text : text.replace(/\\([\\`*_\[\]])/g, '$1');
-                if (link) {
-                  element.href = link[2];
-                  element.target = '_blank';
-                  element.rel = 'noopener noreferrer';
-                }
-                block.appendChild(element);
-              }
-              lastIndex = match.index + token.length;
-            }
-            const rest = document.createElement('span');
-            rest.textContent = content.slice(lastIndex) || (content ? '' : '\u00a0');
-            block.appendChild(rest);
-            (list || markdownPreview).appendChild(block);
-          });
-  
-          if (codeBlock) finishCodeBlock();
+        if (parsedMarkdownSource !== titleInput.value) {
+          parsedMarkdownSource = titleInput.value;
+          parsedMarkdown = markdown.parse(parsedMarkdownSource);
+          previewDirty = true;
         }
-
-        markdownLabel.classList.toggle('hidden', !hasMarkdown);
-        const showPreview = hasMarkdown && markdownCheckbox.checked && !editing;
+        markdownLabel.classList.toggle('hidden', !parsedMarkdown.hasMarkdown);
+        const showPreview = parsedMarkdown.hasMarkdown && markdownCheckbox.checked && !editing;
+        if (showPreview && previewDirty) {
+          markdownPreview.replaceChildren(markdown.render(document, parsedMarkdown));
+          previewDirty = false;
+        }
         titleInput.classList.toggle('hidden', showPreview);
         markdownPreview.classList.toggle('hidden', !showPreview);
       }

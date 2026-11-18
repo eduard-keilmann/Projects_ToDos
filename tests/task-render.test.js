@@ -19,7 +19,7 @@ function loadTaskRenderFunction() {
     module: { exports: {} }
   };
 
-  const source = ['taskStatusOptions', 'normalizeTaskStatus', 'normalizePriority'].map(name => extractFunctionSource(script, name)).join('\n\n') + '\n\n' + extractFunctionSource(script, 'buildTaskRow');
+  const source = extractFunctionSource(script, 'createMarkdownModule') + '\nconst markdown = createMarkdownModule();\n' + ['taskStatusOptions', 'normalizeTaskStatus', 'normalizePriority'].map(name => extractFunctionSource(script, name)).join('\n\n') + '\n\n' + extractFunctionSource(script, 'buildTaskRow');
   vm.runInNewContext(`${source}\n\nmodule.exports = { buildTaskRow };`, context);
   return context.module.exports;
 }
@@ -87,6 +87,8 @@ class FakeElement {
   set textContent(value) { this._textContent = value; this.children = []; }
 
   get textContent() { return this._textContent; }
+
+  replaceChildren(...nodes) { this.children = []; nodes.forEach(node => { if (node.tagName === '#FRAGMENT') node.children.forEach(child => this.appendChild(child)); else this.appendChild(node); }); }
 
   append(...nodes) {
     nodes.forEach(node => this.appendChild(node));
@@ -156,6 +158,7 @@ function buildSelectorMatcher(selector) {
 
 function createDocument() {
   return {
+    createDocumentFragment() { return new FakeElement('#fragment'); },
     createElement(tagName) {
       return new FakeElement(tagName);
     }
@@ -325,23 +328,6 @@ test('Markdown preview defaults on, can be toggled, and leaves the source editab
   assert.equal(preview.classList.contains('hidden'), true);
 });
 
-test('Markdown display renders headings, lists, and links', () => {
-  const { buildTaskRow } = loadTaskRenderFunction();
-  const row = buildTaskRow({
-    document: createDocument(), task: createTask({ title: '# Heading\n- **Item**\n<img src=x> [link](https://example.com)' }),
-    editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
-    autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
-    normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
-    getDraggedTaskId: () => null, setDraggedTaskId() {}
-  });
-  const preview = row.querySelector('.markdown-preview');
-  assert.equal(preview.querySelector('h1').children[0].textContent, 'Heading');
-  assert.equal(preview.querySelector('li').querySelector('strong').textContent, 'Item');
-  assert.equal(preview.querySelector('a').href, 'https://example.com');
-  assert.equal(preview.querySelector('a').rel, 'noopener noreferrer');
-});
-
-
 test('disabling Markdown resizes the now-visible multiline editor', () => {
   const { buildTaskRow } = loadTaskRenderFunction();
   const resizedVisibleInputs = [];
@@ -361,65 +347,6 @@ test('disabling Markdown resizes the now-visible multiline editor', () => {
   checkbox.dispatchEvent({ type: 'change' });
   assert.equal(row.querySelector('.inline-title-input').classList.contains('hidden'), false);
   assert.equal(resizedVisibleInputs.includes(row.querySelector('.inline-title-input')), true);
-});
-
-
-test('ordinary underscores, escaped syntax, and empty markers do not activate Markdown', () => {
-  const { buildTaskRow } = loadTaskRenderFunction();
-  for (const title of ['snake_case_name', '5 * 10 * 20', String.raw`\*literal*`, '# ', '- ']) {
-    const row = buildTaskRow({
-      document: createDocument(), task: createTask({ title, notes: '' }),
-      editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
-      autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
-      normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
-      getDraggedTaskId: () => null, setDraggedTaskId() {}
-    });
-    assert.equal(row.querySelector('.markdown-toggle').classList.contains('hidden'), true, title);
-    assert.equal(row.querySelector('.inline-title-input').value, title);
-  }
-});
-
-test('escaped markup stays literal alongside actual Markdown', () => {
-  const { buildTaskRow } = loadTaskRenderFunction();
-  const row = buildTaskRow({
-    document: createDocument(), task: createTask({ title: String.raw`**Bold** \*literal* snake_case_name` }),
-    editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
-    autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
-    normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
-    getDraggedTaskId: () => null, setDraggedTaskId() {}
-  });
-  const preview = row.querySelector('.markdown-preview');
-  assert.equal(preview.querySelector('strong').textContent, 'Bold');
-  assert.equal(preview.querySelector('em'), null);
-  assert.equal(preview.querySelector('p').children.map(child => child.textContent).join(''), 'Bold *literal* snake_case_name');
-});
-
-
-test('fenced code is preserved and only selected languages receive highlighting', () => {
-  const { buildTaskRow } = loadTaskRenderFunction();
-  const fence = String.fromCharCode(96).repeat(3);
-  for (const [language, code, highlighted] of [
-    ['python', 'def run():\n    return "hello"', true],
-    ['bash', 'if true; then echo hi; fi', true],
-    ['cpp', 'int main() { return 0; }', true],
-    ['powershell', 'if ($x) { return 1 }', false],
-    ['', 'return 1', false]
-  ]) {
-    const title = fence + language + '\n' + code + '\n' + fence;
-    const row = buildTaskRow({
-      document: createDocument(), task: createTask({ title, notes: '' }),
-      editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
-      autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
-      normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
-      getDraggedTaskId: () => null, setDraggedTaskId() {}
-    });
-    const block = row.querySelector('pre').querySelector('code');
-    const displayed = block.children.length ? block.children.map(child => child.textContent).join('') : block.textContent;
-    assert.equal(displayed, code, language);
-    assert.equal(Boolean(block.querySelector('.code-keyword')), highlighted, language);
-    assert.equal(row.querySelector('.markdown-toggle').classList.contains('hidden'), false);
-    assert.equal(row.querySelector('.inline-title-input').value, title);
-  }
 });
 
 

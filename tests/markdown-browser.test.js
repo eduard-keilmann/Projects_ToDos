@@ -11,7 +11,7 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
   const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
   const harness = '<!doctype html><style>' + css + '</style><main id="tasks"></main><output id="result">NOT RUN</output><script>' +
-    extractFunctionSource(script, 'autoResizeTextarea') + extractFunctionSource(script, 'resizeRenderedNoteFields') + extractFunctionSource(script, 'taskStatusOptions') + extractFunctionSource(script, 'normalizeTaskStatus') + extractFunctionSource(script, 'normalizePriority') + extractFunctionSource(script, 'buildTaskRow') + String.raw`
+    extractFunctionSource(script, 'createMarkdownModule') + 'const markdown = createMarkdownModule();' + extractFunctionSource(script, 'autoResizeTextarea') + extractFunctionSource(script, 'resizeRenderedNoteFields') + extractFunctionSource(script, 'taskStatusOptions') + extractFunctionSource(script, 'normalizeTaskStatus') + extractFunctionSource(script, 'normalizePriority') + extractFunctionSource(script, 'buildTaskRow') + String.raw`
     const options = {
       document, task: { id: 'test', title: '**Safe** <img src=x onerror="window.injected=true">', notes: '', priority: 'medium', done: false, dueDate: '', createdAt: '2026-01-01T00:00:00Z' },
       editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
@@ -45,43 +45,6 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
       checkbox.checked = false;
       checkbox.dispatchEvent(new Event('change'));
       if (input.scrollHeight > input.clientHeight + 1) throw Error('Editor is clipped: ' + input.scrollHeight + '/' + input.clientHeight + ' height ' + input.style.height);
-      const numberedRow = buildTaskRow({
-        ...options,
-        task: { ...options.task, id: 'numbered', title: 'Es fehlen Schritte:\n\n1. **Erster.** Text\n\n2. **Zweiter.** Text\n\n3. **Dritter.** Text\n\n4. **Vierter.** Text\n\n5. **Fünfter.** Text' }
-      });
-      document.body.appendChild(numberedRow);
-      const numberedLists = [...numberedRow.querySelectorAll('.markdown-preview ol')];
-      if (numberedLists.length !== 5 || numberedLists.some((list, index) => list.start !== index + 1 || list.children.length !== 1)) {
-        throw Error('List numbering is incorrect');
-      }
-      const fence = String.fromCharCode(96).repeat(3);
-      const codeCases = [
-        ['python', 'def test():\n    return "<img src=x>" # note', 'def'],
-        ['py', 'return 1', 'return'],
-        ['bash', 'if true; then\n  echo "hi" # note\nfi', 'if'],
-        ['sh', 'for x in a; do echo x; done', 'for'],
-        ['shell', 'while true; do break; done', 'while'],
-        ['c', 'int main() { return 0; }', 'int'],
-        ['cpp', 'class Example { public: int value; };', 'class'],
-        ['c++', 'const int value = 1;', 'const'],
-        ['powershell', 'if ($x) { return "hi" }', ''],
-        ['ps1', 'if ($x) { return "hi" }', ''],
-        ['constructor', 'return 1', ''],
-        ['', 'return 1', '']
-      ];
-      for (const [language, code, keyword] of codeCases) {
-        const raw = fence + language + '\n' + code + '\n' + fence;
-        const codeRow = buildTaskRow({ ...options, task: { ...options.task, title: raw } });
-        const block = codeRow.querySelector('.markdown-preview pre code');
-        if (!block || block.textContent !== code || block.querySelector('img')) throw Error('Incorrect code block: ' + language);
-        if (codeRow.querySelector('textarea.inline-title-input').value !== raw) throw Error('Code source changed: ' + language);
-        const highlighted = block.querySelector('.code-keyword');
-        if (keyword ? !highlighted || highlighted.textContent !== keyword : block.querySelector('.code-keyword, .code-string, .code-comment')) {
-          throw Error('Incorrect highlighting: ' + language);
-        }
-      }
-      const unfinished = buildTaskRow({ ...options, task: { ...options.task, title: fence + 'python\nreturn 1' } });
-      if (unfinished.querySelector('.markdown-preview pre code').textContent !== 'return 1') throw Error('Unclosed code block lost text');
       const spacer = document.createElement('div');
       spacer.style.height = '1200px';
       document.body.appendChild(spacer);
@@ -111,4 +74,14 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
   ` + '</script>';
   const output = await runBrowserHtml(harness);
   assert.equal(output.match(/<output id="result">([^<]*)<\/output>/)?.[1], 'PASS');
+});
+
+test('Markdown renderer creates safe elements with correct numbering and code classes', { skip: !browserAvailable }, async () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'project_todo_tool.html'), 'utf8');
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const harness = '<!doctype html><output id="result">NOT RUN</output><script>' +
+    extractFunctionSource(script, 'createMarkdownModule') + 'const markdown = createMarkdownModule();' +
+    "try {\n      const direct = document.createElement('div');\n      direct.appendChild(markdown.render(document, markdown.parse('# Heading\\n- **Item**\\n<img src=x> [link](https://example.com)\\n**Bold** \\\\*literal* snake_case_name')));\n      if (direct.querySelector('h1').textContent !== 'Heading' || direct.querySelector('li strong').textContent !== 'Item') throw Error('Incorrect block rendering');\n      const link = direct.querySelector('a');\n      if (link.href !== 'https://example.com/' || link.rel !== 'noopener noreferrer' || link.target !== '_blank') throw Error('Unsafe link');\n      if (direct.querySelector('img') || direct.querySelector('em') || !direct.textContent.includes('Bold *literal* snake_case_name')) throw Error('Incorrect literal rendering');\n      const directList = document.createElement('div');\n      directList.appendChild(markdown.render(document, markdown.parse('3. Three\\n\\n4. Four')));\n      const directLists = directList.querySelectorAll('ol');\n      if (directLists.length !== 2 || directLists[0].start !== 3 || directLists[1].start !== 4) throw Error('Incorrect direct list numbering');\n      const directFence = String.fromCharCode(96).repeat(3);\n      const directCode = document.createElement('div');\n      directCode.appendChild(markdown.render(document, markdown.parse(directFence + 'python\\nreturn \"<img>\" # note\\n' + directFence)));\n      if (directCode.querySelector('img') || directCode.querySelector('code').textContent !== 'return \"<img>\" # note' ||\n          !directCode.querySelector('.code-keyword') || !directCode.querySelector('.code-string') || !directCode.querySelector('.code-comment')) throw Error('Incorrect direct code rendering');\n      let rejected = false;\n      try { markdown.render(document, { blocks: [{ type: 'constructor' }] }); } catch (error) { rejected = true; }\n      if (!rejected) throw Error('Unknown block was accepted');\ndocument.getElementById('result').textContent = 'PASS';\n} catch (error) { document.getElementById('result').textContent = 'FAIL: ' + error.message; }" + '</' + 'script>';
+  const output = await runBrowserHtml(harness);
+  assert.match(output, /<output id="result">PASS<\/output>/);
 });

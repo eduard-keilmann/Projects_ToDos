@@ -129,3 +129,12 @@ Editor integration tests retain responsibility for selection/copy behavior, chec
 7. Verify no runtime files or dependencies were added, no persisted schema changed, and no unrequested Markdown syntax expansion slipped into the refactor.
 
 The intended outcome is a smaller ToDo-row responsibility and directly testable Markdown behavior, not a general-purpose Markdown library.
+
+
+## Implementation checklist
+
+- [x] Separate pure Markdown parsing and safe DOM rendering in the existing HTML file.
+- [x] Keep source cache, editing interactions and lazy preview rendering in the ToDo row.
+- [x] Preserve Markdown syntax, highlighting aliases and the JSON persistence contract.
+- [x] Move rule coverage to parser/renderer tests and retain interaction regressions.
+- [ ] Verify selection, focus, layout and native interaction in Safari.
