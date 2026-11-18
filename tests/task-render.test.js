@@ -314,6 +314,7 @@ test('Markdown preview defaults on, can be toggled, and leaves the source editab
   assert.equal(preview.querySelector('strong').textContent, 'Bold');
   assert.equal(preview.querySelector('code').textContent, 'code');
   assert.equal(input.value, task.title);
+  const initialBlockCount = preview.children.length;
 
   checkbox.checked = false;
   checkbox.dispatchEvent({ type: 'change' });
@@ -323,6 +324,7 @@ test('Markdown preview defaults on, can be toggled, and leaves the source editab
 
   checkbox.checked = true;
   checkbox.dispatchEvent({ type: 'change' });
+  assert.equal(preview.children.length, initialBlockCount);
   preview.dispatchEvent({ type: 'click', target: { closest: () => null } });
   assert.equal(input.classList.contains('hidden'), false);
   input.value = 'plain text';
