@@ -291,3 +291,60 @@ test('buildTaskRow routes field changes through task intents and hides empty not
     ['priority', 'low']
   ]);
 });
+
+
+test('Markdown preview defaults on, can be toggled, and leaves the source editable', () => {
+  const { buildTaskRow } = loadTaskRenderFunction();
+  const task = createTask({ title: '**Bold** and \x60code\x60', notes: '' });
+  const preferences = new Map();
+  const options = {
+    document: createDocument(), task, markdownPreferences: preferences,
+    editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
+    autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
+    normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
+    getDraggedTaskId: () => null, setDraggedTaskId() {}
+  };
+  const row = buildTaskRow(options);
+  const input = row.querySelector('.inline-title-input');
+  const preview = row.querySelector('.markdown-preview');
+  const checkbox = row.querySelector('.markdown-checkbox');
+  assert.equal(checkbox.checked, true);
+  assert.equal(row.querySelector('.markdown-toggle').classList.contains('hidden'), false);
+  assert.equal(input.classList.contains('hidden'), true);
+  assert.equal(preview.querySelector('strong').textContent, 'Bold');
+  assert.equal(preview.querySelector('code').textContent, 'code');
+  assert.equal(input.value, task.title);
+
+  checkbox.checked = false;
+  checkbox.dispatchEvent({ type: 'change' });
+  assert.equal(preview.classList.contains('hidden'), true);
+  assert.equal(input.classList.contains('hidden'), false);
+  assert.equal(buildTaskRow(options).querySelector('.markdown-checkbox').checked, false);
+
+  checkbox.checked = true;
+  checkbox.dispatchEvent({ type: 'change' });
+  preview.dispatchEvent({ type: 'click', target: { closest: () => null } });
+  assert.equal(input.classList.contains('hidden'), false);
+  input.value = 'plain text';
+  input.dispatchEvent({ type: 'input' });
+  input.dispatchEvent({ type: 'blur' });
+  assert.equal(row.querySelector('.markdown-toggle').classList.contains('hidden'), true);
+  assert.equal(preview.classList.contains('hidden'), true);
+});
+
+test('Markdown display builds safe elements and does not interpret raw HTML', () => {
+  const { buildTaskRow } = loadTaskRenderFunction();
+  const row = buildTaskRow({
+    document: createDocument(), task: createTask({ title: '# Heading\n- **Item**\n<img src=x> [link](https://example.com)' }),
+    editable: true, taskReorderEnabled: false, taskIndex: 0, taskCount: 1,
+    autoResizeTextarea() {}, clearDragIndicators() {}, formatDate: value => value,
+    normalizeDateTime: value => value, relativeInfo: () => '', normalizeDateOnly: value => value,
+    getDraggedTaskId: () => null, setDraggedTaskId() {}
+  });
+  const preview = row.querySelector('.markdown-preview');
+  assert.equal(preview.querySelector('h1').children[0].textContent, 'Heading');
+  assert.equal(preview.querySelector('li').querySelector('strong').textContent, 'Item');
+  assert.equal(preview.querySelector('img'), null);
+  assert.equal(preview.querySelector('a').href, 'https://example.com');
+  assert.equal(preview.querySelector('a').rel, 'noopener noreferrer');
+});

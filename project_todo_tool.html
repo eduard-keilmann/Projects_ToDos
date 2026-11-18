@@ -530,6 +530,28 @@
       word-break: break-word;
     }
 
+    .markdown-preview {
+      cursor: text;
+      font-weight: 400;
+    }
+
+    .markdown-preview:focus-visible {
+      outline: 2px solid var(--primary);
+    }
+
+    .markdown-preview h1, .markdown-preview h2, .markdown-preview h3,
+    .markdown-preview p, .markdown-preview ul, .markdown-preview ol,
+    .markdown-preview blockquote {
+      margin: 0 0 0.4em;
+    }
+
+    .markdown-preview ul, .markdown-preview ol { padding-left: 1.5em; }
+    .markdown-preview blockquote { padding-left: 0.7em; border-left: 3px solid var(--border); }
+    .markdown-preview code { background: var(--surface-3); border-radius: 4px; padding: 0 3px; }
+    .markdown-toggle { font-size: 0.7rem; color: var(--muted); text-align: center; }
+    .markdown-toggle input { display: block; margin: 0 auto 3px; }
+    .editor-task.done .markdown-preview { text-decoration: line-through; color: var(--muted); }
+
     .inline-notes-input {
       min-height: 48px;
       resize: none;
@@ -960,6 +982,7 @@
     let browserLastSavedAt = '';
     let browserLastExportAt = '';
     let state = createEmptyState();
+    const markdownPreferences = new WeakMap();
     let currentStatusKind = 'warn';
     let currentStatusTitle = 'No folder connected yet';
     let currentStatusParts = ['Click "Connect Folder" and choose the same folder as this HTML file.'];
@@ -2158,6 +2181,7 @@
         normalizeDateOnly,
         getDraggedTaskId,
         setDraggedTaskId,
+        markdownPreferences = new Map(),
         intents = {}
       } = options;
 
@@ -2293,6 +2317,18 @@
       }));
       controlStack.appendChild(prioritySelect);
 
+      const markdownLabel = document.createElement('label');
+      markdownLabel.className = 'markdown-toggle';
+      const markdownCheckbox = document.createElement('input');
+      markdownCheckbox.type = 'checkbox';
+      markdownCheckbox.className = 'markdown-checkbox';
+      markdownCheckbox.checked = markdownPreferences.get(task) !== false;
+      markdownCheckbox.setAttribute('aria-label', 'Show Markdown formatting');
+      const markdownLabelText = document.createElement('span');
+      markdownLabelText.textContent = 'Markdown';
+      markdownLabel.append(markdownCheckbox, markdownLabelText);
+      controlStack.appendChild(markdownLabel);
+
       const body = document.createElement('div');
       body.className = 'editor-body';
 
@@ -2303,11 +2339,75 @@
       titleInput.placeholder = 'ToDo title';
       titleInput.disabled = !editable;
       titleInput.dataset.previousValue = task.title;
+      const markdownPreview = document.createElement('div');
+      markdownPreview.className = 'inline-title-input markdown-preview';
+      markdownPreview.setAttribute('aria-label', 'Edit ToDo title');
+      markdownPreview.tabIndex = editable ? 0 : -1;
+
+      function updateMarkdownDisplay(editing = false) {
+        const text = titleInput.value;
+        const inlinePattern = /(\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))/g;
+        const hasMarkdown = /(^|\n)\s{0,3}(#{1,3}\s+|[-*+]\s+|\d+\.\s+|>\s+)|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)/.test(text);
+        markdownLabel.classList.toggle('hidden', !hasMarkdown);
+        const showPreview = hasMarkdown && markdownCheckbox.checked && !editing;
+        titleInput.classList.toggle('hidden', showPreview);
+        markdownPreview.classList.toggle('hidden', !showPreview);
+        if (!showPreview) return;
+
+        markdownPreview.textContent = '';
+        let list = null;
+        text.split('\n').forEach(line => {
+          const heading = line.match(/^\s{0,3}(#{1,3})\s+(.+)$/);
+          const listItem = line.match(/^\s{0,3}([-*+]|\d+\.)\s+(.+)$/);
+          const quote = line.match(/^\s{0,3}>\s+(.+)$/);
+          const listType = listItem && (/^\d/.test(listItem[1]) ? 'ol' : 'ul');
+          if (!listItem || !list || list.tagName.toLowerCase() !== listType) {
+            list = listItem ? document.createElement(listType) : null;
+            if (list) markdownPreview.appendChild(list);
+          }
+          const block = document.createElement(heading ? 'h' + heading[1].length : listItem ? 'li' : quote ? 'blockquote' : 'p');
+          const content = heading ? heading[2] : listItem ? listItem[2] : quote ? quote[1] : line;
+          let lastIndex = 0;
+          for (const match of content.matchAll(inlinePattern)) {
+            const before = document.createElement('span');
+            before.textContent = content.slice(lastIndex, match.index);
+            block.appendChild(before);
+            const token = match[0];
+            const link = token.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+            const element = document.createElement(link ? 'a' : token.startsWith('**') || token.startsWith('__') ? 'strong' : token.startsWith('`') ? 'code' : 'em');
+            element.textContent = link ? link[1] : token.slice(token.startsWith('**') || token.startsWith('__') ? 2 : 1, token.startsWith('**') || token.startsWith('__') ? -2 : -1);
+            if (link) { element.href = link[2]; element.target = '_blank'; element.rel = 'noopener noreferrer'; }
+            block.appendChild(element);
+            lastIndex = match.index + token.length;
+          }
+          const rest = document.createElement('span');
+          rest.textContent = content.slice(lastIndex) || (content ? '' : '\u00a0');
+          block.appendChild(rest);
+          (list || markdownPreview).appendChild(block);
+        });
+      }
+      markdownCheckbox.addEventListener('change', () => {
+        markdownPreferences.set(task, markdownCheckbox.checked);
+        updateMarkdownDisplay();
+      });
+      markdownPreview.addEventListener('click', event => {
+        if (!editable || event.target.closest('a')) return;
+        updateMarkdownDisplay(true);
+        titleInput.focus();
+      });
+      markdownPreview.addEventListener('keydown', event => {
+        if (editable && event.target === markdownPreview && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          updateMarkdownDisplay(true);
+          titleInput.focus();
+        }
+      });
       titleInput.addEventListener('focus', () => {
         titleInput.dataset.previousValue = titleInput.value;
         autoResizeTextarea(titleInput);
       });
       titleInput.addEventListener('input', event => {
+        updateMarkdownDisplay(true);
         autoResizeTextarea(titleInput);
         intents.onTitleInput?.({
           task,
@@ -2326,6 +2426,7 @@
           previousValue: titleInput.dataset.previousValue || '',
           event
         });
+        updateMarkdownDisplay();
       });
 
       const notesInput = document.createElement('textarea');
@@ -2407,12 +2508,13 @@
         meta.appendChild(due);
       }
 
+      updateMarkdownDisplay();
       autoResizeTextarea(titleInput);
       if (shouldShowNotesInput) {
         autoResizeTextarea(notesInput);
-        body.append(titleInput, notesInput, subrow, meta);
+        body.append(titleInput, markdownPreview, notesInput, subrow, meta);
       } else {
-        body.append(titleInput, subrow, meta);
+        body.append(titleInput, markdownPreview, subrow, meta);
       }
 
       item.append(dragWrap, controlStack, body);
@@ -2531,6 +2633,7 @@
           taskReorderEnabled,
           taskIndex: project.tasks.findIndex(currentTask => currentTask.id === task.id),
           taskCount: project.tasks.length,
+          markdownPreferences,
           autoResizeTextarea,
           clearDragIndicators,
           formatDate,
