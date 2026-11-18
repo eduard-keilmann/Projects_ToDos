@@ -1106,6 +1106,36 @@
     const BROWSER_PAYLOAD_KEY = 'browser-payload';
     const BROWSER_META_KEY = 'browser-meta';
     const THEME_STORAGE_KEY = 'project-todo-tool-theme';
+    const SCROLL_STORAGE_KEY = 'project-todo-tool-scroll';
+
+    // Reload can finish before asynchronous storage has populated the page.
+    let reloadScroll = null;
+    let previousScrollRestoration = null;
+    try {
+      if (performance.getEntriesByType('navigation')[0]?.type === 'reload') {
+        reloadScroll = JSON.parse(sessionStorage.getItem(SCROLL_STORAGE_KEY));
+        if (!Number.isFinite(reloadScroll?.x) || !Number.isFinite(reloadScroll?.y)) reloadScroll = null;
+        if (reloadScroll) {
+          previousScrollRestoration = history.scrollRestoration;
+          history.scrollRestoration = 'manual';
+        }
+      }
+      sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+    } catch {
+      reloadScroll = null;
+    }
+    const cancelReloadScroll = () => { reloadScroll = null; };
+    const scrollCancelEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    if (reloadScroll) scrollCancelEvents.forEach(type =>
+      window.addEventListener(type, cancelReloadScroll, { passive: true })
+    );
+    window.addEventListener('pagehide', () => {
+      try {
+        sessionStorage.setItem(SCROLL_STORAGE_KEY, JSON.stringify({ x: window.scrollX, y: window.scrollY }));
+      } catch {
+        // Storage can be unavailable in private or restricted browsing modes.
+      }
+    });
 
     let directoryHandle = null;
     let dataFileHandle = null;
@@ -3793,10 +3823,17 @@
       }, { once: true });
       if (getStorageMode().usesBrowserStorage) {
         await initBrowserStorageMode();
-        return;
+      } else {
+        await tryRestoreRememberedDirectory();
+        render();
       }
-      await tryRestoreRememberedDirectory();
-      render();
+      if (reloadScroll && appReady) {
+        if (document.fonts?.ready) await document.fonts.ready;
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        if (reloadScroll) window.scrollTo(reloadScroll.x, reloadScroll.y);
+      }
+      scrollCancelEvents.forEach(type => window.removeEventListener(type, cancelReloadScroll));
+      if (previousScrollRestoration !== null) history.scrollRestoration = previousScrollRestoration;
     }
 
     init();
