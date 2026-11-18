@@ -166,7 +166,7 @@ You can update:
 
 Notes remain persisted and searchable. The inline notes field appears only for tasks that already contain stored notes.
 
-ToDo titles with recognized Markdown show a checked Markdown toggle below the priority selector. Click the formatted title to edit its original text; formatting returns when editing ends. The toggle is remembered for the current session only, so existing JSON files and backups remain unchanged. Supported syntax includes headings (levels 1–3), simple lists and block quotes, bold, italic, inline code, and HTTP(S) links. This is a limited Markdown implementation; nested formatting and other Markdown syntax are not supported.
+ToDo titles with recognized Markdown show a checked Markdown toggle below the priority selector. Select text in the formatted title to copy it, or click without selecting to edit its original text; formatting returns when editing ends. The toggle is remembered for the current session only, so existing JSON files and backups remain unchanged. Supported syntax includes headings (levels 1–3), simple lists and block quotes, bold, italic, inline code, and HTTP(S) links. This is a limited Markdown implementation; nested formatting and other Markdown syntax are not supported.
 
 ### Reorder
 

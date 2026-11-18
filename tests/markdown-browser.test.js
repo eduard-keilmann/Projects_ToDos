@@ -36,7 +36,16 @@ test('Markdown preview treats HTML as text and adjusts to changing content in a 
       const checkbox = row.querySelector('.markdown-checkbox');
       if (preview.querySelector('img') || !preview.textContent.includes('<img src=x') || window.injected) throw Error('HTML was interpreted');
       if (preview.style.height) throw Error('Preview has a fixed height');
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(preview.querySelector('strong'));
+      selection.removeAllRanges();
+      selection.addRange(range);
       preview.click();
+      if (selection.toString() !== 'Safe' || preview.classList.contains('hidden')) throw Error('Selection was lost');
+      selection.removeAllRanges();
+      preview.click();
+      if (input.classList.contains('hidden') || document.activeElement !== input) throw Error('Click did not open the editor');
       input.value = '**Long**\n' + Array(12).fill('Another line').join('\n');
       input.dispatchEvent(new Event('input'));
       input.blur();

@@ -2416,6 +2416,9 @@
       });
       markdownPreview.addEventListener('click', event => {
         if (!editable || event.target.closest('a')) return;
+        const selection = document.getSelection?.();
+        if (selection && !selection.isCollapsed &&
+            (markdownPreview.contains(selection.anchorNode) || markdownPreview.contains(selection.focusNode))) return;
         updateMarkdownDisplay(true);
         titleInput.focus();
       });
