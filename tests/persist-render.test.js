@@ -29,9 +29,9 @@ test('finishing a save updates the status without replacing the focused task con
 });
 
 
-test('search refresh waits until the task dropdown loses focus', () => {
+test('search refresh waits for leaving the list and clears pending work on render', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'project_todo_tool.html'), 'utf8');
-  const start = html.indexOf('    function renderTasks()');
+  const start = html.indexOf('    let pendingTaskFilterRefresh = false;');
   const end = html.indexOf('\n    function render()', start);
   assert.ok(start >= 0 && end > start);
   const task = { id: 't', title: 'match old', notes: '', done: false };
@@ -40,7 +40,7 @@ test('search refresh waits until the task dropdown loses focus', () => {
   let intents;
   const field = () => ({ style: {}, classList: { toggle() {}, add() {}, remove() {} }, disabled: false });
   const els = new Proxy({ searchInput: { value: 'match' }, taskList: {
-    replaceChildren() { renders++; }, appendChild() {}, contains() { return true; }
+    replaceChildren() { renders++; }, appendChild() {}, contains(target) { return Boolean(target?.inside); }
   } }, { get(target, key) { return target[key] || (target[key] = field()); } });
   const noop = () => {};
   const context = {
@@ -57,14 +57,26 @@ test('search refresh waits until the task dropdown loses focus', () => {
     normalizeDateOnly: noop, scheduleAutosave: noop, requestAnimationFrame: noop,
     resizeRenderedNoteFields: noop, markdownPreferences: new Map()
   };
-  vm.runInNewContext(html.slice(start, end) + '\nthis.renderTasks = renderTasks;', context);
+  vm.runInNewContext(html.slice(start, end) + '\nthis.renderTasks = renderTasks; this.focusOut = refreshTaskFilterOnFocusOut;', context);
   context.renderTasks();
-  const select = { matches: () => true };
-  const input = { value: 'changed', dataset: {} };
-  intents.onTitleBlur({ task, input, value: input.value, previousValue: 'match old', event: { relatedTarget: select } });
-  assert.equal(renders, 1);
-  intents.onSelectBlur({ event: { relatedTarget: null } });
+  const destinations = ['notes', 'date', 'title', 'status', 'delete'].map(name => ({ name, inside: true }));
+  for (const destination of destinations) {
+    const input = { value: 'match changed ' + destination.name, dataset: { previousValue: 'old' } };
+    intents.onTitleBlur({ task, input, value: input.value, previousValue: 'old', event: { relatedTarget: destination } });
+    context.focusOut({ relatedTarget: destination });
+    assert.equal(renders, 1);
+    intents.onNotesBlur({ task, input, value: input.value, event: { relatedTarget: destination } });
+    assert.equal(renders, 1);
+  }
+  context.focusOut({ relatedTarget: null });
   assert.equal(renders, 2);
+  context.focusOut({ relatedTarget: null });
+  assert.equal(renders, 2);
+  intents.onTitleBlur({ task, input: { value: 'match again' }, value: 'match again', previousValue: 'old', event: { relatedTarget: destinations[0] } });
+  context.renderTasks();
+  assert.equal(renders, 3);
+  context.focusOut({ relatedTarget: null });
+  assert.equal(renders, 3);
 });
 
 

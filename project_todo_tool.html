@@ -2318,7 +2318,6 @@
       statusSelect.addEventListener('change', event => intents.onStatusChange?.({
         task, item, value: statusSelect.value, event
       }));
-      statusSelect.addEventListener('blur', event => intents.onSelectBlur?.({ event }));
       controlStack.appendChild(statusSelect);
 
       const prioritySelect = document.createElement('select');
@@ -2338,7 +2337,6 @@
         value: prioritySelect.value,
         event
       }));
-      prioritySelect.addEventListener('blur', event => intents.onSelectBlur?.({ event }));
       controlStack.appendChild(prioritySelect);
 
       const markdownLabel = document.createElement('label');
@@ -2660,7 +2658,17 @@
       return item;
     }
 
+    let pendingTaskFilterRefresh = false;
+
+    function refreshTaskFilterOnFocusOut(event) {
+      if (pendingTaskFilterRefresh && !els.taskList.contains(event.relatedTarget)) {
+        pendingTaskFilterRefresh = false;
+        renderTasks();
+      }
+    }
+
     function renderTasks() {
+      pendingTaskFilterRefresh = false;
       const project = getSelectedProject();
       const editable = isEditingEnabled();
       const reviewOnlyMode = canReviewUnsavedBrowserState();
@@ -2764,11 +2772,10 @@
 
       els.emptyState.classList.add('hidden');
 
-      let pendingFilterRefresh = false;
       function deferFilterRefresh(event) {
         const next = event.relatedTarget;
-        if (next && els.taskList.contains(next) && next.matches('.status-select, .priority-select')) {
-          pendingFilterRefresh = true;
+        if (next && els.taskList.contains(next)) {
+          pendingTaskFilterRefresh = true;
           return true;
         }
         return false;
@@ -2824,22 +2831,6 @@
               if (reorderProjectTasks(currentProject, movedTaskId, task.id, insertAfter)) {
                 draggedTaskId = null;
                 await persistAndRender();
-              }
-            },
-            onSelectBlur({ event }) {
-              if (pendingFilterRefresh && !deferFilterRefresh(event)) {
-                pendingFilterRefresh = false;
-                const next = event.relatedTarget;
-                if (next && els.taskList.contains(next)) {
-                  const refreshWhenLeaving = blurEvent => {
-                    if (blurEvent.relatedTarget && els.taskList.contains(blurEvent.relatedTarget)) return;
-                    els.taskList.removeEventListener('focusout', refreshWhenLeaving);
-                    renderTasks();
-                  };
-                  els.taskList.addEventListener('focusout', refreshWhenLeaving);
-                } else {
-                  renderTasks();
-                }
               }
             },
             async onStatusChange({ task, item, value }) {
@@ -3697,6 +3688,7 @@
     });
     els.renameProjectBtn.addEventListener('click', renameProject);
     els.deleteProjectBtn.addEventListener('click', deleteProject);
+    els.taskList.addEventListener('focusout', refreshTaskFilterOnFocusOut);
     els.filterSelect.addEventListener('change', renderTasks);
     els.searchInput.addEventListener('input', renderTasks);
     els.exportBtn.addEventListener('click', exportBackup);
